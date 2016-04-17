@@ -32,9 +32,13 @@ WAIT_S = 5
 #   capture windowed mean weight
 #   record weight difference
 
-def read_weight(sio):
+def read_weight(sio, ser):
     while True:
         try:
+            # drain input
+            while ser.inWaiting():
+                sio.readline()
+            print 'about to read complete line'
             reading = sio.readline()
             match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
             if match:
@@ -80,7 +84,7 @@ class Test(object):
 
     __repr__ = __str__
 
-    def run(self, sio):
+    def run(self, sio, ser):
         self.result = {
             'pump': self.pump,
             'revs': self.revs,
@@ -89,12 +93,12 @@ class Test(object):
         for rep in xrange(self.repeats):
             for command, name, sign in ((t.forward, 'forward', 1), (t.back, 'back', -1)):
 #                 before = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
-                before = read_weight(sio)
+                before = read_weight(sio, ser)
                 print 'before = {}, sending "{}"'.format(before, command)
                 printer.send(command)
                 sleep(t.duration + WAIT_S)
 #                 after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
-                after = read_weight(sio)
+                after = read_weight(sio, ser)
                 print 'after = {}'.format(after)
                 delta = after - before
                 print 'delta = {}'.format(delta)
@@ -108,7 +112,7 @@ ser = serial.Serial(
     baudrate=9600,
 )
 sio = io.TextIOWrapper(
-    io.BufferedRWPair(ser, ser, 1),
+    io.BufferedReader(ser, 1),
     newline='\r'
 )
 
@@ -122,7 +126,7 @@ printer.send("G91")
 
 with open(OUTFILE,'w') as f:
     for t in tests:
-        t.run(sio)
+        t.run(sio, ser)
         print t
     writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
     writer.writeheader()
