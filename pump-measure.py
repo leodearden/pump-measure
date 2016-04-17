@@ -11,14 +11,14 @@ OUTFILE='/Users/leo/data/pump-measure.csv'
 MAX_SD_RATIO = 0.1
 N_SAMPLES = 3
 N_REPEATS = 10
-# MAX_DURATION = 30
-MAX_DURATION = 10
-# REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
-# FEEDS = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-REVS = [10, 100, 1000]
-FEEDS = [10, 30, 100, 300, 1000, 1800, 3000]
-# PUMPS = ['X', 'Y']
-PUMPS = ['X']
+MAX_DURATION = 30
+# MAX_DURATION = 10
+REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
+FEEDS = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+# REVS = [10, 100, 1000]
+# FEEDS = [10, 30, 100, 300, 1000, 1800, 3000]
+PUMPS = ['X', 'Y']
+# PUMPS = ['X']
 WAIT_S = 5
 
 # parse input flags for data directory and test space parameters
@@ -38,7 +38,6 @@ def read_weight(sio, ser):
             # drain input
             while ser.inWaiting():
                 sio.readline()
-            print 'about to read complete line'
             reading = sio.readline()
             match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
             if match:
@@ -94,14 +93,14 @@ class Test(object):
             for command, name, sign in ((t.forward, 'forward', 1), (t.back, 'back', -1)):
 #                 before = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
                 before = read_weight(sio, ser)
-                print 'before = {}, sending "{}"'.format(before, command)
+#                 print 'before = {}, sending "{}"'.format(before, command)
                 printer.send(command)
                 sleep(t.duration + WAIT_S)
 #                 after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
                 after = read_weight(sio, ser)
-                print 'after = {}'.format(after)
+#                 print 'after = {}'.format(after)
                 delta = after - before
-                print 'delta = {}'.format(delta)
+#                 print 'delta = {}'.format(delta)
                 self.result['T{}_{}'.format(rep, name)] = delta * sign
 
 
