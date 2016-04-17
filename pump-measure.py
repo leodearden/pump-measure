@@ -3,7 +3,22 @@
 an output file'''
 
 from datetime import datetime
-import serial, io, re, numpy
+import serial, io, re, numpy, itertools, glob
+from printrun.printcore import printcore
+from time import sleep
+
+OUTFILE='/Users/leo/data/pump-measure.csv'
+MAX_SD_RATIO = 0.1
+N_SAMPLES = 3
+N_REPEATS = 10
+MAX_DURATION = 10
+# REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
+# FEEDS = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+REVS = [10, 100, 1000]
+FEEDS = [10, 30, 100, 300, 1000, 1800, 3000]
+# PUMPS = ['X', 'Y']
+PUMPS = ['X']
+WAIT_S = 1
 
 # parse input flags for data directory and test space parameters
 # build test space tuple list
@@ -38,7 +53,51 @@ def read_mean_weight(sio, samples, max_sd_ratio):
         raise Exception('Excessive deviation in readings. Drift or problem? (readings {}, sd = {}, mean = {})'.format(weights, sd, w)) 
     return w
 
-outfile='/Users/leo/data/pump-measure.csv'
+class Test(object):
+    def __init__(self, feed, revs, pump, repeats):
+        self.feed = feed
+        self.revs = revs
+        self.pump = pump
+        self.repeats = repeats
+        self.result = None
+
+    @property
+    def duration(self):
+        return 60*self.revs/self.feed
+
+    @property
+    def forward(self):
+        return 'G0 {}{} F{}'.format(self.pump, self.revs, self.feed)
+
+    @property
+    def back(self):
+        return 'G0 {}-{} F{}'.format(self.pump, self.revs, self.feed)
+
+    def __str__(self):
+        return 'Test {} for {} revs at feed {} in {}s (result = {})'.format(t.pump, t.revs, t.feed, t.duration, t.result)
+
+    __repr__ = __str__
+
+    def run(self, sio):
+        self.result = {
+            'pump': self.pump,
+            'revs': self.revs,
+            'feed': self.feed,
+        }
+        for rep in xrange(self.repeats):
+            for command, name, sign in ((t.forward, 'forward', 1), (t.back, 'back', -1)):
+                before = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
+#                 print 'before = {}, sending "{}"'.format(before, command)
+                printer.send(command)
+                sleep(t.duration + WAIT_S)
+                after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
+#                 print 'after = {}'.format(after)
+                delta = after - before
+                print 'delta = {}'.format(delta)
+                self.result['T{}_{}'.format(rep, name)] = delta * sign
+
+
+tests = filter(lambda t: t.duration <= MAX_DURATION, [Test(f, r, p, N_REPEATS) for f, r, p in itertools.product(REVS, FEEDS, PUMPS)])
 
 ser = serial.Serial(
     port='/dev/tty.usbserial',
@@ -48,7 +107,19 @@ sio = io.TextIOWrapper(
     io.BufferedRWPair(ser, ser, 1),
     newline='\r'
 )
-with open(outfile,'a') as f: #appends to existing file
-    while ser.isOpen():
-        print read_mean_weight(sio, 10, 0.3)
+
+assert len(glob.glob('/dev/tty.usbmodem*')) == 1, "Too many usb modems instantiated. Can't tell which one is the Smoothieboard."
+printer_interface = glob.glob('/dev/tty.usbmodem*')[0]
+print 'printer_interface = {}'.format(printer_interface)
+printer = printcore()
+printer.connect(port=printer_interface, baud=115200)
+sleep(3)
+printer.send("G91")
+
+with open(OUTFILE,'a') as f: #appends to existing file
+    for t in tests:
+        t.run(sio)
+        print t
+
 ser.close()
+printer.disconnect()
