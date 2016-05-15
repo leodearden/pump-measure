@@ -6,6 +6,7 @@ from datetime import datetime
 import serial, io, re, numpy, itertools, glob, csv
 from printrun.printcore import printcore
 from time import sleep
+from datetime import datetime
 
 OUTFILE='/Users/leo/data/pump-measure.csv'
 MAX_SD_RATIO = 0.1
@@ -68,7 +69,7 @@ class Test(object):
 
     @property
     def duration(self):
-        return 60*self.revs/self.feed
+        return (60.0 * self.revs) / self.feed
 
     @property
     def forward(self):
@@ -90,10 +91,11 @@ class Test(object):
             'feed': self.feed,
         }
         for rep in xrange(self.repeats):
+            self.result['time'] = datetime.utcnow().isoformat()
             for command, name, sign in ((t.forward, 'forward', 1), (t.back, 'back', -1)):
 #                 before = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
                 before = read_weight(sio, ser)
-#                 print 'before = {}, sending "{}"'.format(before, command)
+                print 'before = {}, sending "{}"'.format(before, command)
                 printer.send(command)
                 sleep(t.duration + WAIT_S)
 #                 after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
@@ -104,31 +106,40 @@ class Test(object):
                 self.result['T{}_{}'.format(rep, name)] = delta * sign
 
 
-tests = filter(lambda t: t.duration <= MAX_DURATION, [Test(f, r, p, N_REPEATS) for f, r, p in itertools.product(REVS, FEEDS, PUMPS)])
+tests = filter(lambda t: t.duration <= MAX_DURATION,
+               [
+                    Test(f, r, p, N_REPEATS)
+                    for f, r, p in itertools.product(REVS, FEEDS, PUMPS)
+                ])
 
-ser = serial.Serial(
+with serial.Serial(
     port='/dev/tty.usbserial',
     baudrate=9600,
-)
-sio = io.TextIOWrapper(
-    io.BufferedReader(ser, 1),
-    newline='\r'
-)
+) as ser:
+    with io.TextIOWrapper(
+        io.BufferedReader(ser, 1),
+        newline='\r',
+        errors='backslashreplace'
+    ) as sio:
 
-assert len(glob.glob('/dev/tty.usbmodem*')) == 1, "Too many usb modems instantiated. Can't tell which one is the Smoothieboard."
-printer_interface = glob.glob('/dev/tty.usbmodem*')[0]
-print 'printer_interface = {}'.format(printer_interface)
-printer = printcore()
-printer.connect(port=printer_interface, baud=115200)
-sleep(3)
-printer.send("G91")
+        usb_modem_names = glob.glob('/dev/tty.usbmodem*')
+        assert len(usb_modem_names) == 1, "Too many usb modems instantiated. Can't tell which one is the Smoothieboard."
+        printer_interface = usb_modem_names[0]
+        print 'printer_interface = {}'.format(printer_interface)
+        printer = printcore()
+        printer.connect(port=printer_interface, baud=115200)
+        sleep(3)
+        printer.send("G91")
 
-with open(OUTFILE,'w') as f:
-    for t in tests:
-        t.run(sio, ser)
-        print t
-    writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
-    writer.writeheader()
-    writer.writerows([t.result for t in tests])
-ser.close()
-printer.disconnect()
+        try:
+            with open(OUTFILE,'w') as f:
+                for t in tests:
+                    t.run(sio, ser)
+                    print t
+                writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
+                writer.writeheader()
+                writer.writerows([t.result for t in tests])
+        except Exception as e:
+            print 'Exiting on error: ' + str(e)
+        ser.close()
+        printer.disconnect()
