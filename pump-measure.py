@@ -14,13 +14,13 @@ N_SAMPLES = 3
 N_REPEATS = 10
 MAX_DURATION = 30
 # MAX_DURATION = 10
-REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
-RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+REVS = [100]
+RATES = [1000, 1800]
 # REVS = [10, 100, 1000]
 # RATES = [10, 30, 100, 300, 1000, 1800, 3000]
 # PUMPS = ['X', 'Y', 'Z']
-PUMPS = ['X']
-# PUMPS = ['Z']
+# PUMPS = ['X']
+PUMPS = ['Z']
 WAIT_S = 0.3
 
 # parse input flags for data directory and test space parameters
@@ -114,8 +114,8 @@ class Test(object):
 
 tests = filter(lambda t: t.duration <= MAX_DURATION,
                [
-                    Test(f, r, p, N_REPEATS)
-                    for f, r, p in itertools.product(REVS, RATES, PUMPS)
+                    Test(rate, revs, p, N_REPEATS)
+                    for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
                 ])
 
 with serial.Serial(
