@@ -18,9 +18,10 @@ REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
 FEEDS = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
 # REVS = [10, 100, 1000]
 # FEEDS = [10, 30, 100, 300, 1000, 1800, 3000]
-PUMPS = ['X', 'Y']
-# PUMPS = ['X']
-WAIT_S = 5
+# PUMPS = ['X', 'Y', 'Z']
+PUMPS = ['X']
+# PUMPS = ['Z']
+WAIT_S = 0.3
 
 # parse input flags for data directory and test space parameters
 # build test space tuple list
@@ -33,15 +34,19 @@ WAIT_S = 5
 #   capture windowed mean weight
 #   record weight difference
 
+
+def drain(sio, ser):
+    while ser.inWaiting():
+        sio.readline()
+
 def read_weight(sio, ser):
     while True:
         try:
-            # drain input
-            while ser.inWaiting():
-                sio.readline()
+            drain(sio, ser)
             reading = sio.readline()
             match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
             if match:
+                print '{} read from scales: {}'.format(datetime.utcnow().isoformat(), reading)
                 return float(match.group(1))
             else:
                 print "couldn't parse printer message: '{}'".format(reading)
@@ -97,6 +102,7 @@ class Test(object):
                 before = read_weight(sio, ser)
                 print 'before = {}, sending "{}"'.format(before, command)
                 printer.send(command)
+                drain(sio, ser)
                 sleep(t.duration + WAIT_S)
 #                 after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
                 after = read_weight(sio, ser)
