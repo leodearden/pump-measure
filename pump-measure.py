@@ -15,9 +15,9 @@ N_REPEATS = 10
 MAX_DURATION = 30
 # MAX_DURATION = 10
 REVS = [0.1, 0.3, 1, 3, 10, 100, 1000]
-FEEDS = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
 # REVS = [10, 100, 1000]
-# FEEDS = [10, 30, 100, 300, 1000, 1800, 3000]
+# RATES = [10, 30, 100, 300, 1000, 1800, 3000]
 # PUMPS = ['X', 'Y', 'Z']
 PUMPS = ['X']
 # PUMPS = ['Z']
@@ -65,8 +65,8 @@ def read_mean_weight(sio, samples, max_sd_ratio):
     return w
 
 class Test(object):
-    def __init__(self, feed, revs, pump, repeats):
-        self.feed = feed
+    def __init__(self, rate, revs, pump, repeats):
+        self.rate = rate
         self.revs = revs
         self.pump = pump
         self.repeats = repeats
@@ -74,18 +74,18 @@ class Test(object):
 
     @property
     def duration(self):
-        return (60.0 * self.revs) / self.feed
+        return (60.0 * self.revs) / self.rate
 
     @property
     def forward(self):
-        return 'G0 {}{} F{}'.format(self.pump, self.revs, self.feed)
+        return 'G0 {}{} F{}'.format(self.pump, self.revs, self.rate)
 
     @property
     def back(self):
-        return 'G0 {}-{} F{}'.format(self.pump, self.revs, self.feed)
+        return 'G0 {}-{} F{}'.format(self.pump, self.revs, self.rate)
 
     def __str__(self):
-        return 'Test {} for {} revs at feed {} in {}s (result = {})'.format(t.pump, t.revs, t.feed, t.duration, t.result)
+        return 'Test {} for {} revs at rate {} in {}s (result = {})'.format(t.pump, t.revs, t.rate, t.duration, t.result)
 
     __repr__ = __str__
 
@@ -93,7 +93,7 @@ class Test(object):
         self.result = {
             'pump': self.pump,
             'revs': self.revs,
-            'feed': self.feed,
+            'rate': self.rate,
         }
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
@@ -115,7 +115,7 @@ class Test(object):
 tests = filter(lambda t: t.duration <= MAX_DURATION,
                [
                     Test(f, r, p, N_REPEATS)
-                    for f, r, p in itertools.product(REVS, FEEDS, PUMPS)
+                    for f, r, p in itertools.product(REVS, RATES, PUMPS)
                 ])
 
 with serial.Serial(
