@@ -111,40 +111,50 @@ class Test(object):
 #                 print 'delta = {}'.format(delta)
                 self.result['T{}_{}'.format(rep, name)] = delta * sign
 
+print 'generating tests...'
 
 tests = filter(lambda t: t.duration <= MAX_DURATION,
                [
                     Test(rate, revs, p, N_REPEATS)
                     for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
                 ])
-
+print 'done.'
+print 'opening serial port ....'
 with serial.Serial(
     port='/dev/tty.usbserial',
     baudrate=9600,
 ) as ser:
+    print 'done.'
+    print 'creating IOWrapper'
     with io.TextIOWrapper(
         io.BufferedReader(ser, 1),
         newline='\r',
         errors='backslashreplace'
     ) as sio:
-
+        print 'IOWrapper done.'
         usb_modem_names = glob.glob('/dev/tty.usbmodem*')
         assert len(usb_modem_names) == 1, "Too many usb modems instantiated. Can't tell which one is the Smoothieboard."
         printer_interface = usb_modem_names[0]
-        print 'printer_interface = {}'.format(printer_interface)
+        print 'opening printer_interface = {} ....'.format(printer_interface)
         printer = printcore()
         printer.connect(port=printer_interface, baud=115200)
+        print 'done.'
         sleep(3)
+        print 'configuring Smoothie board....'
         printer.send("G91")
-
+        print 'done.'
+        print 'starting tests....'
         try:
             with open(OUTFILE,'w') as f:
                 for t in tests:
                     t.run(sio, ser)
                     print t
+                print 'done.'
+                print 'writing results....'
                 writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
                 writer.writeheader()
                 writer.writerows([t.result for t in tests])
+                print 'done.'
         except Exception as e:
             print 'Exiting on error: ' + str(e)
         ser.close()
