@@ -14,14 +14,16 @@ N_SAMPLES = 3
 N_REPEATS = 10
 MAX_DURATION = 30
 # MAX_DURATION = 10
-REVS = [100]
-RATES = [1000, 1800]
+# REVS = [20, 30]
+# RATES = [1000, 1800]
 # REVS = [10, 100, 1000]
 # RATES = [10, 30, 100, 300, 1000, 1800, 3000]
+REVS = [10, 100, 300]
+RATES = [10, 30, 100, 300, 1000, 1800, 3000]
 # PUMPS = ['X', 'Y', 'Z']
-PUMPS = ['X']
+PUMPS = ['Y']
 # PUMPS = ['Z']
-WAIT_S = 0.3
+WAIT_S = 4.0
 
 # parse input flags for data directory and test space parameters
 # build test space tuple list
@@ -35,34 +37,36 @@ WAIT_S = 0.3
 #   record weight difference
 
 
-def drain(sio, ser):
-    while ser.inWaiting():
-        sio.readline()
 
-def read_weight(sio, ser):
+def read_all(sio, ser):
+    read = []
+    while ser.inWaiting():
+        read.append(sio.readline())
+    return read
+
+def drain(sio, ser):
+    print 'draining...'
+    read = read_all(sio, ser)
+    print 'done ({} lines).'.format(len(read))
+
+def read_weights(sio, ser):
     while True:
         try:
-            drain(sio, ser)
-            reading = sio.readline()
-            match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
-            if match:
-                print '{} read from scales: {}'.format(datetime.utcnow().isoformat(), reading)
-                return float(match.group(1))
-            else:
-                print "couldn't parse printer message: '{}'".format(reading)
+            print 'about to read from balance...'
+            readings = read_all(sio, ser)
+            print '{} read from scales: {}'.format(datetime.utcnow().isoformat(), readings)
+            values = []
+            for reading in readings:
+                match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
+                if match:
+                    values.append(float(match.group(1)))
+                else:
+                    print "couldn't parse printer message: '{}'".format(reading)
+            return min(values), max(values)
         except serial.SerialException as e:
             #There is no new data from serial port
             print 'trying again to read'
             continue
-
-def read_mean_weight(sio, samples, max_sd_ratio):
-    weights = [read_weight(sio) for _ in xrange(samples)]
-    wa = numpy.array(weights)
-    sd = numpy.std(wa, ddof=1)
-    w = numpy.mean(wa)
-    if sd/w > max_sd_ratio:
-        raise Exception('Excessive deviation in readings. Drift or problem? (readings {}, sd = {}, mean = {})'.format(weights, sd, w)) 
-    return w
 
 class Test(object):
     def __init__(self, rate, revs, pump, repeats):
@@ -97,19 +101,15 @@ class Test(object):
         }
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
-            for command, name, sign in ((t.forward, 'forward', 1), (t.back, 'back', -1)):
-#                 before = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
-                before = read_weight(sio, ser)
-                print 'before = {}, sending "{}"'.format(before, command)
-                printer.send(command)
+            for command, name in ((t.forward, 'forward'), (t.back, 'back')):
                 drain(sio, ser)
+                print 'sending "{}"'.format(command)
+                printer.send(command)
                 sleep(t.duration + WAIT_S)
-#                 after = read_mean_weight(sio, N_SAMPLES, MAX_SD_RATIO)
-                after = read_weight(sio, ser)
-#                 print 'after = {}'.format(after)
-                delta = after - before
-#                 print 'delta = {}'.format(delta)
-                self.result['T{}_{}'.format(rep, name)] = delta * sign
+                min, max = read_weights(sio, ser)
+                delta = max - min
+                print 'min = {}, max = {}, delta = {}'.format(min, max, delta)
+                self.result['T{}_{}'.format(rep, name)] = delta
 
 print 'generating tests...'
 
