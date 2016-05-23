@@ -106,10 +106,12 @@ class Test(object):
                 print 'sending "{}"'.format(command)
                 printer.send(command)
                 sleep(t.duration + WAIT_S)
-                min, max = read_weights(sio, ser)
-                delta = max - min
-                print 'min = {}, max = {}, delta = {}'.format(min, max, delta)
-                self.result['T{}_{}'.format(rep, name)] = delta
+                mn, mx = read_weights(sio, ser)
+                delta = mx - mn
+                print 'mn = {}, mx = {}, delta = {}'.format(mn, mx, delta)
+                self.result['T{}_{}_min'.format(rep, name)] = mn
+                self.result['T{}_{}_max'.format(rep, name)] = mx
+                self.result['T{}_{}_delta'.format(rep, name)] = delta
 
 print 'generating tests...'
 
