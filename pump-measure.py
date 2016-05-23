@@ -75,6 +75,10 @@ class Test(object):
         self.pump = pump
         self.repeats = repeats
         self.result = None
+        self.default_result = {
+            'pump':self.pump, 
+            'revs':self.revs, 
+            'rate':self.rate}
 
     @property
     def duration(self):
@@ -94,11 +98,7 @@ class Test(object):
     __repr__ = __str__
 
     def run(self, sio, ser):
-        self.result = {
-            'pump': self.pump,
-            'revs': self.revs,
-            'rate': self.rate,
-        }
+        self.result = default_result
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
             for command, name in ((t.forward, 'forward'), (t.back, 'back')):
@@ -153,7 +153,11 @@ with serial.Serial(
                     print t
                 print 'done.'
                 print 'writing results...'
-                writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
+                titles = sorted(tests[0].result.iterkeys())
+                for title in t.default_result.iterkeys():
+                    titles.remove(title)
+                titles = t.default_result.keys() + titles
+                writer = csv.DictWriter(f, titles)
                 writer.writeheader()
                 writer.writerows([t.result for t in tests])
                 print 'done.'
