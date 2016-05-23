@@ -19,8 +19,8 @@ RATES = [1000, 1800]
 # REVS = [10, 100, 1000]
 # RATES = [10, 30, 100, 300, 1000, 1800, 3000]
 # PUMPS = ['X', 'Y', 'Z']
-# PUMPS = ['X']
-PUMPS = ['Z']
+PUMPS = ['X']
+# PUMPS = ['Z']
 WAIT_S = 0.3
 
 # parse input flags for data directory and test space parameters
@@ -119,38 +119,38 @@ tests = filter(lambda t: t.duration <= MAX_DURATION,
                     for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
                 ])
 print 'done.'
-print 'opening serial port ....'
+print 'opening serial port...'
 with serial.Serial(
     port='/dev/tty.usbserial',
     baudrate=9600,
 ) as ser:
     print 'done.'
-    print 'creating IOWrapper'
+    print 'creating IOWrapper...'
     with io.TextIOWrapper(
         io.BufferedReader(ser, 1),
         newline='\r',
         errors='backslashreplace'
     ) as sio:
-        print 'IOWrapper done.'
+        print 'done.'
         usb_modem_names = glob.glob('/dev/tty.usbmodem*')
         assert len(usb_modem_names) == 1, "Too many usb modems instantiated. Can't tell which one is the Smoothieboard."
         printer_interface = usb_modem_names[0]
-        print 'opening printer_interface = {} ....'.format(printer_interface)
+        print 'opening printer_interface = {} ...'.format(printer_interface)
         printer = printcore()
         printer.connect(port=printer_interface, baud=115200)
         print 'done.'
         sleep(3)
-        print 'configuring Smoothie board....'
+        print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
-        print 'starting tests....'
+        print 'starting tests...'
         try:
             with open(OUTFILE,'w') as f:
                 for t in tests:
                     t.run(sio, ser)
                     print t
                 print 'done.'
-                print 'writing results....'
+                print 'writing results...'
                 writer = csv.DictWriter(f, sorted(tests[0].result.iterkeys()))
                 writer.writeheader()
                 writer.writerows([t.result for t in tests])
