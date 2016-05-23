@@ -16,10 +16,10 @@ MAX_DURATION = 30
 # MAX_DURATION = 10
 # REVS = [20, 30]
 # RATES = [1000, 1800]
-# REVS = [10, 100, 1000]
-# RATES = [10, 30, 100, 300, 1000, 1800, 3000]
-REVS = [10, 100, 300]
+REVS = [10, 100, 1000]
 RATES = [10, 30, 100, 300, 1000, 1800, 3000]
+# REVS = [100]
+# RATES = [300, 3000]
 # PUMPS = ['X', 'Y', 'Z']
 PUMPS = ['Y']
 # PUMPS = ['Z']
@@ -78,7 +78,8 @@ class Test(object):
         self.default_result = {
             'pump':self.pump, 
             'revs':self.revs, 
-            'rate':self.rate}
+            'rate':self.rate,
+            'time':None,}
 
     @property
     def duration(self):
