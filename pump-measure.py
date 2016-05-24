@@ -99,7 +99,7 @@ class Test(object):
     __repr__ = __str__
 
     def run(self, sio, ser):
-        self.result = default_result
+        self.result = dict(self.default_result)
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
             for command, name in ((t.forward, 'forward'), (t.back, 'back')):
