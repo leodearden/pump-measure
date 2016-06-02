@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import serial, io, re, numpy, itertools, glob, csv
+import serial, io, re, numpy, itertools, glob, csv, math
 from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime
@@ -9,8 +9,11 @@ N_REPEATS = 10
 MAX_DURATION = 61
 REVS = [1, 3, 10, 30, 100, 300, 600]
 RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-PUMPS = ['Y']
+# REVS = [30, 100]
+# RATES = [1800, 3000]
+PUMPS = ['X']
 WAIT_S = 2.0
+START_WEIGHT = 100
 
 def read_all(sio, ser):
     read = []
@@ -19,9 +22,15 @@ def read_all(sio, ser):
     return read
 
 def drain(sio, ser):
-    print 'draining...'
     read = read_all(sio, ser)
-    print 'done ({} lines).'.format(len(read))
+    print 'draining done ({} lines).'.format(len(read))
+
+def parse_weight(reading):
+                match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
+                if match:
+                    return float(match.group(1))
+                else:
+                    return None
 
 def read_weights(sio, ser):
     while True:
@@ -31,9 +40,9 @@ def read_weights(sio, ser):
             print '{} read from scales: {}'.format(datetime.utcnow().isoformat(), readings)
             values = []
             for reading in readings:
-                match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
-                if match:
-                    values.append(float(match.group(1)))
+                weight = parse_weight(reading)
+                if weight:
+                    values.append(weight)
                 else:
                     print "couldn't parse printer message: '{}'".format(reading)
             return min(values), max(values)
@@ -41,6 +50,24 @@ def read_weights(sio, ser):
             #There is no new data from serial port
             print 'trying again to read'
             continue
+
+def read_weight(sio, ser):
+    drain(sio, ser)
+    readings = []
+    while not readings:
+        readings = read_all(sio, ser)
+    return parse_weight(readings[-1])
+
+def set_to_weight(sio, ser, pump, target, eps=0.1):
+    MASS_PER_REV = 0.22
+    RATE = 1000
+    weight = read_weight(sio, ser)
+    while math.fabs(target - weight) > eps:
+        print "Error = " + str(target - weight)
+        revs = (target - weight) / MASS_PER_REV
+        printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
+        sleep(WAIT_S)
+        weight = read_weight(sio, ser)
 
 class Test(object):
     def __init__(self, rate, revs, pump, repeats):
@@ -74,8 +101,10 @@ class Test(object):
 
     def run(self, sio, ser):
         self.result = dict(self.default_result)
+        set_to_weight(sio, ser, self.pump, START_WEIGHT)
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
+            start_weight = read_weight(sio, ser)
             for command, name in ((t.forward, 'forward'), (t.back, 'back')):
                 drain(sio, ser)
                 print 'sending "{}"'.format(command)
@@ -87,6 +116,8 @@ class Test(object):
                 self.result['T{}_{}_min'.format(rep, name)] = mn
                 self.result['T{}_{}_max'.format(rep, name)] = mx
                 self.result['T{}_{}_delta'.format(rep, name)] = delta
+            end_weight = read_weight(sio, ser)
+            self.result['T{}_drift'.format(rep)] = end_weight - start_weight
 
 print 'generating tests...'
 
@@ -138,5 +169,4 @@ with serial.Serial(
                 print 'done.'
         except Exception as e:
             print 'Exiting on error: ' + str(e)
-        ser.close()
         printer.disconnect()
