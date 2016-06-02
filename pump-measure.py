@@ -6,11 +6,11 @@ from datetime import datetime
 
 OUTFILE='/Users/leo/data/pump-measure.csv'
 N_REPEATS = 10
-MAX_DURATION = 30
-REVS = [10, 100, 1000]
-RATES = [10, 30, 100, 300, 1000, 1800, 3000]
+MAX_DURATION = 61
+REVS = [1, 3, 10, 30, 100, 300, 600]
+RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
 PUMPS = ['Y']
-WAIT_S = 4.0
+WAIT_S = 2.0
 
 def read_all(sio, ser):
     read = []
