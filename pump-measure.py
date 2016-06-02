@@ -1,42 +1,16 @@
 #!/usr/bin/env python
-'''This version of the readserial program demonstrates using python to write
-an output file'''
-
-from datetime import datetime
 import serial, io, re, numpy, itertools, glob, csv
 from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime
 
 OUTFILE='/Users/leo/data/pump-measure.csv'
-MAX_SD_RATIO = 0.1
-N_SAMPLES = 3
 N_REPEATS = 10
 MAX_DURATION = 30
-# MAX_DURATION = 10
-# REVS = [20, 30]
-# RATES = [1000, 1800]
 REVS = [10, 100, 1000]
 RATES = [10, 30, 100, 300, 1000, 1800, 3000]
-# REVS = [100]
-# RATES = [300, 3000]
-# PUMPS = ['X', 'Y', 'Z']
 PUMPS = ['Y']
-# PUMPS = ['Z']
 WAIT_S = 4.0
-
-# parse input flags for data directory and test space parameters
-# build test space tuple list
-# connect to pumps
-# for each test tuple
-#   capture windowed mean weight
-#   calculate expected duration
-#   send command
-#   wait for completion
-#   capture windowed mean weight
-#   record weight difference
-
-
 
 def read_all(sio, ser):
     read = []
