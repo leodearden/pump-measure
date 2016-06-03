@@ -151,7 +151,8 @@ with serial.Serial(
         print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
-        print 'starting tests...'
+        runtime = sum([t.duration + WAIT_S for t in tests])
+        print 'starting tests (expected runtime {})...'.format(datetime.timedelta(seconds=runtime))
         try:
             with open(OUTFILE,'w') as f:
                 for t in tests:
