@@ -105,7 +105,7 @@ class Test(object):
         for rep in xrange(self.repeats):
             self.result['time'] = datetime.utcnow().isoformat()
             start_weight = read_weight(sio, ser)
-            for command, name in ((t.forward, 'forward'), (t.back, 'back')):
+            for command, name in ((t.forward, 'F'), (t.back, 'R')):
                 drain(sio, ser)
                 print 'sending "{}"'.format(command)
                 printer.send(command)
@@ -113,9 +113,9 @@ class Test(object):
                 mn, mx = read_weights(sio, ser)
                 delta = mx - mn
                 print 'mn = {}, mx = {}, delta = {}'.format(mn, mx, delta)
-                self.result['T{}_{}_min'.format(rep, name)] = mn
-                self.result['T{}_{}_max'.format(rep, name)] = mx
-                self.result['T{}_{}_delta'.format(rep, name)] = delta
+                self.result['T{}_{}_n'.format(rep, name)] = mn
+                self.result['T{}_{}_x'.format(rep, name)] = mx
+                self.result['T{}_{}_d'.format(rep, name)] = delta
             end_weight = read_weight(sio, ser)
             self.result['T{}_drift'.format(rep)] = end_weight - start_weight
 
