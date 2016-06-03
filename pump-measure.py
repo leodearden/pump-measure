@@ -1,16 +1,16 @@
 #!/usr/bin/env python
-import serial, io, re, numpy, itertools, glob, csv, math
+import serial, io, re, numpy, itertools, glob, csv, math, datetime
 from printrun.printcore import printcore
 from time import sleep
-from datetime import datetime
+from datetime import datetime as dt
 
 OUTFILE='/Users/leo/data/pump-measure.csv'
 N_REPEATS = 10
 MAX_DURATION = 61
-REVS = [1, 3, 10, 30, 100, 300, 600]
-RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-# REVS = [30, 100]
-# RATES = [1800, 3000]
+# REVS = [1, 3, 10, 30, 100, 300, 600]
+# RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+REVS = [30, 100]
+RATES = [1800]
 PUMPS = ['X']
 WAIT_S = 2.0
 START_WEIGHT = 100
@@ -23,7 +23,7 @@ def read_all(sio, ser):
 
 def drain(sio, ser):
     read = read_all(sio, ser)
-    print 'draining done ({} lines).'.format(len(read))
+#     print 'draining done ({} lines).'.format(len(read))
 
 def parse_weight(reading):
                 match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
@@ -37,7 +37,7 @@ def read_weights(sio, ser):
         try:
             print 'about to read from balance...'
             readings = read_all(sio, ser)
-            print '{} read from scales: {}'.format(datetime.utcnow().isoformat(), readings)
+            print '{} read from scales: {}'.format(dt.utcnow().isoformat(), readings)
             values = []
             for reading in readings:
                 weight = parse_weight(reading)
@@ -63,7 +63,7 @@ def set_to_weight(sio, ser, pump, target, eps=0.1):
     RATE = 1000
     weight = read_weight(sio, ser)
     while math.fabs(target - weight) > eps:
-        print "Error = " + str(target - weight)
+        print "set_to_weight: error = " + str(target - weight)
         revs = (target - weight) / MASS_PER_REV
         printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
         sleep(WAIT_S)
@@ -103,7 +103,7 @@ class Test(object):
         self.result = dict(self.default_result)
         set_to_weight(sio, ser, self.pump, START_WEIGHT)
         for rep in xrange(self.repeats):
-            self.result['time'] = datetime.utcnow().isoformat()
+            self.result['time'] = dt.utcnow().isoformat()
             start_weight = read_weight(sio, ser)
             for command, name in ((t.forward, 'F'), (t.back, 'R')):
                 drain(sio, ser)
@@ -151,22 +151,25 @@ with serial.Serial(
         print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
-        runtime = sum([t.duration + WAIT_S for t in tests])
+        runtime = sum([20 * (t.duration + WAIT_S) for t in tests])
         print 'starting tests (expected runtime {})...'.format(datetime.timedelta(seconds=runtime))
         try:
             with open(OUTFILE,'w') as f:
+                writer = None
                 for t in tests:
                     t.run(sio, ser)
                     print t
-                print 'done.'
-                print 'writing results...'
-                titles = sorted(tests[0].result.iterkeys())
-                for title in t.default_result.iterkeys():
-                    titles.remove(title)
-                titles = t.default_result.keys() + titles
-                writer = csv.DictWriter(f, titles)
-                writer.writeheader()
-                writer.writerows([t.result for t in tests])
+                    if not writer:
+                        print 'Preparing to write results to {}...'.format(OUTFILE)
+                        titles = sorted(tests[0].result.iterkeys())
+                        for title in t.default_result.iterkeys():
+                            titles.remove(title)
+                        titles = t.default_result.keys() + titles
+                        writer = csv.DictWriter(f, titles)
+                        writer.writeheader()
+                        print 'prepared.'
+                    writer.writerow(t.result)
+                    f.flush()
                 print 'done.'
         except Exception as e:
             print 'Exiting on error: ' + str(e)
