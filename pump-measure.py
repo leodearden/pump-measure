@@ -4,7 +4,7 @@ from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
 
-OUTFILE='/Users/leo/data/pump-measure.csv'
+OUTFILE='/Users/leo/data/pump-measure.{}.csv'.format(dt.utcnow().isoformat())
 N_REPEATS = 10
 MAX_DURATION = 61
 REVS = [1, 3, 10, 30, 100, 300, 600]
