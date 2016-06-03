@@ -7,10 +7,10 @@ from datetime import datetime as dt
 OUTFILE='/Users/leo/data/pump-measure.csv'
 N_REPEATS = 10
 MAX_DURATION = 61
-# REVS = [1, 3, 10, 30, 100, 300, 600]
-# RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-REVS = [30, 100]
-RATES = [1800]
+REVS = [1, 3, 10, 30, 100, 300, 600]
+RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+# REVS = [30, 100]
+# RATES = [1800]
 PUMPS = ['X']
 WAIT_S = 2.0
 START_WEIGHT = 100
