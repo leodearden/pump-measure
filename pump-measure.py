@@ -118,11 +118,11 @@ class Test(object):
                 mn, mx = read_weights(sio, ser)
                 delta = mx - mn
                 print 'mn = {}, mx = {}, delta = {}'.format(mn, mx, delta)
-                self.result['T{}_{}_n'.format(rep, name)] = mn
-                self.result['T{}_{}_x'.format(rep, name)] = mx
-                self.result['T{}_{}_d'.format(rep, name)] = delta
+                self.result['T{:03}_{}_n'.format(rep, name)] = mn
+                self.result['T{:03}_{}_x'.format(rep, name)] = mx
+                self.result['T{:03}_{}_d'.format(rep, name)] = delta
             end_weight = read_weight(sio, ser)
-            self.result['T{}_drift'.format(rep)] = end_weight - start_weight
+            self.result['T{:03}_drift'.format(rep)] = end_weight - start_weight
 
 def generate_tests(N_REPEATS, MAX_DURATION, REVS, RATES, PUMPS):
     tests = [
