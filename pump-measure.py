@@ -7,12 +7,17 @@ from datetime import datetime as dt
 OUTFILE='/Users/leo/data/pump-measure.{}.csv'.format(dt.utcnow().isoformat())
 N_REPEATS = 10
 MAX_DURATION = 61
-REVS = [1, 3, 10, 30, 100, 300, 600]
-RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-# REVS = [30, 100]
-# RATES = [1800]
+# REVS = [1, 3, 10, 30, 100, 300, 600]
+# RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
+REVS = [100]
+RATES = [1800]
+# N_REPEATS_DEEP = 1000
+N_REPEATS_DEEP = 100
+MAX_DURATION_DEEP = 36000
+REVS_DEEP = [0.1, 0.3, 1]
+RATES_DEEP = [100]
 PUMPS = ['X']
-WAIT_S = 2.0
+WAIT_S = 2.5
 START_WEIGHT = 100
 
 def read_all(sio, ser):
@@ -61,13 +66,13 @@ def read_weight(sio, ser):
 def set_to_weight(sio, ser, pump, target, eps=0.1):
     MASS_PER_REV = 0.22
     RATE = 1000
-    weight = read_weight(sio, ser)
-    while math.fabs(target - weight) > eps:
-        print "set_to_weight: error = " + str(target - weight)
-        revs = (target - weight) / MASS_PER_REV
+    error = read_weight(sio, ser) - target
+    while math.fabs(error) > eps:
+        print "set_to_weight: error = " + str(error)
+        revs = - error / MASS_PER_REV
         printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
-        sleep(WAIT_S)
-        weight = read_weight(sio, ser)
+        sleep(60 * revs / RATE + WAIT_S)
+        error = read_weight(sio, ser) - target
 
 class Test(object):
     def __init__(self, rate, revs, pump, repeats):
@@ -119,14 +124,19 @@ class Test(object):
             end_weight = read_weight(sio, ser)
             self.result['T{}_drift'.format(rep)] = end_weight - start_weight
 
-print 'generating tests...'
+def generate_tests(N_REPEATS, MAX_DURATION, REVS, RATES, PUMPS):
+    tests = [
+        Test(rate, revs, p, N_REPEATS)
+        for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
+    ]
+    return filter(lambda t: t.duration <= MAX_DURATION, tests)
 
-tests = filter(lambda t: t.duration <= MAX_DURATION,
-               [
-                    Test(rate, revs, p, N_REPEATS)
-                    for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
-                ])
+print 'generating tests...'
+tests = generate_tests(N_REPEATS_DEEP, MAX_DURATION_DEEP, REVS_DEEP, RATES_DEEP, PUMPS)
+tests.extend(generate_tests(N_REPEATS, MAX_DURATION, REVS, RATES, PUMPS))
+runtime = sum([2 * t.repeats * (t.duration + WAIT_S) for t in tests])
 print 'done.'
+
 print 'opening serial port...'
 with serial.Serial(
     port='/dev/tty.usbserial',
@@ -151,7 +161,6 @@ with serial.Serial(
         print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
-        runtime = sum([20 * (t.duration + WAIT_S) for t in tests])
         print 'starting tests (expected runtime {})...'.format(datetime.timedelta(seconds=runtime))
         try:
             with open(OUTFILE,'w') as f:
