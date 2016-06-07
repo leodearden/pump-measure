@@ -49,15 +49,15 @@ def read_weight(sio, ser):
         readings = read_all(sio, ser)
     return parse_weight(readings[-1])
 
-def set_to_weight(sio, ser, pump, target, eps=0.1):
+def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
     MASS_PER_REV = 0.22
-    RATE = 1000
+    RATE = 1000.0
     error = read_weight(sio, ser) - target
     while math.fabs(error) > eps:
         print "set_to_weight: error = " + str(error)
         revs = - error / MASS_PER_REV
         printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
-        sleep(60 * revs / RATE + args.wait)
+        sleep(60 * revs / RATE + wait)
         error = read_weight(sio, ser) - target
 
 class Test(object):
@@ -111,7 +111,7 @@ class Test(object):
 
     def run(self, sio, ser):
         self.result = dict(self.default_result)
-        set_to_weight(sio, ser, self.pump, self.initial_mass)
+        set_to_weight(sio, ser, self.pump, self.initial_mass, self.wait_s)
         for rep in xrange(self.repeats):
             self.result['time'] = dt.utcnow().isoformat()
             start_weight = read_weight(sio, ser)
