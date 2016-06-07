@@ -3,7 +3,6 @@ import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os
 from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
-from IPython.utils._tokenize_py2 import String
 
 OUTFILE='pump-measure.{{}}{}.csv'.format(dt.utcnow().isoformat())
 
