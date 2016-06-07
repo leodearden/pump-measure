@@ -210,8 +210,8 @@ else:
     broad_params = {
         'n_repeats': args.broad,
         'max_duration': 61,
-        'revs': (1, 3, 10, 30, 100, 300, 600),
-        'rates': (1, 3, 10, 30, 100, 300, 1000, 1800, 3000),
+        'revs': (1, 3, 10, 32, 100, 320, 600),
+        'rates': (1, 3, 10, 32, 100, 320, 560, 1000, 1300, 1800, 2400, 3000),
         'pumps': [args.pump]
     }
     deep_params = {
