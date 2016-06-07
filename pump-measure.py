@@ -4,19 +4,22 @@ from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
 
-OUTFILE='/Users/leo/data/pump-measure.{}.csv'.format(dt.utcnow().isoformat())
-N_REPEATS = 10
-MAX_DURATION = 61
-REVS = [1, 3, 10, 30, 100, 300, 600]
-RATES = [1, 3, 10, 30, 100, 300, 1000, 1800, 3000]
-# REVS = [100]
-# RATES = [1800]
-# N_REPEATS_DEEP = 1000
-N_REPEATS_DEEP = 100
-MAX_DURATION_DEEP = 36000
-REVS_DEEP = [0.1, 0.3, 1]
-RATES_DEEP = [100]
-PUMPS = ['X']
+OUTFILE='/Users/leo/data/pump-measure.{{}}{}.csv'.format(dt.utcnow().isoformat())
+PUMPS = ['Z']
+BROAD_PARAMS = {
+    'n_repeats': 10,
+    'max_duration': 61,
+    'revs': (1, 3, 10, 30, 100, 300, 600),
+    'rates': (1, 3, 10, 30, 100, 300, 1000, 1800, 3000),
+    'pumps': PUMPS
+}
+DEEP_PARAMS = {
+    'n_repeats': 150,
+    'max_duration': 36000,
+    'revs': (0.1, 0.3, 1),
+    'rates': (10, 100, 3000),
+    'pumps': PUMPS
+}
 WAIT_S = 2.5
 START_WEIGHT = 100
 
@@ -70,16 +73,18 @@ def set_to_weight(sio, ser, pump, target, eps=0.1):
     while math.fabs(error) > eps:
         print "set_to_weight: error = " + str(error)
         revs = - error / MASS_PER_REV
-        printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
+        printer.send('G0 {}{:} F{}'.format(pump, revs, RATE))
         sleep(60 * revs / RATE + WAIT_S)
         error = read_weight(sio, ser) - target
 
 class Test(object):
-    def __init__(self, rate, revs, pump, repeats):
+    def __init__(self, rate, revs, pump, repeats, writer_container, result_file):
         self.rate = rate
         self.revs = revs
         self.pump = pump
         self.repeats = repeats
+        self.writer_container = writer_container
+        self.result_file = result_file
         self.result = None
         self.default_result = {
             'pump':self.pump, 
@@ -104,6 +109,21 @@ class Test(object):
 
     __repr__ = __str__
 
+    @property
+    def result_writer(self):
+        if not self.writer_container:
+            print 'Preparing to write results to {}...'.format(self.result_file.name)
+            titles = sorted(self.result.iterkeys())
+            # Move the default result columns to the start 
+            for title in self.default_result.iterkeys():
+                titles.remove(title)
+            titles = self.default_result.keys() + titles
+            writer = csv.DictWriter(self.result_file, titles)
+            writer.writeheader()
+            print 'prepared.'
+            self.writer_container.append(writer)
+        return self.writer_container[0]
+
     def run(self, sio, ser):
         self.result = dict(self.default_result)
         set_to_weight(sio, ser, self.pump, START_WEIGHT)
@@ -123,19 +143,17 @@ class Test(object):
                 self.result['T{:03}_{}_d'.format(rep, name)] = delta
             end_weight = read_weight(sio, ser)
             self.result['T{:03}_drift'.format(rep)] = end_weight - start_weight
+        self.result_writer.writerow(self.result)
+        self.result_file.flush()
 
-def generate_tests(N_REPEATS, MAX_DURATION, REVS, RATES, PUMPS):
+
+def generate_tests(n_repeats, max_duration, revs, rates, pumps, result_file):
+    writer_container = []
     tests = [
-        Test(rate, revs, p, N_REPEATS)
-        for rate, revs, p in itertools.product(RATES, REVS, PUMPS)
+        Test(rate, revs, p, n_repeats, writer_container, result_file)
+        for rate, revs, p in itertools.product(rates, revs, pumps)
     ]
-    return filter(lambda t: t.duration <= MAX_DURATION, tests)
-
-print 'generating tests...'
-tests = generate_tests(N_REPEATS_DEEP, MAX_DURATION_DEEP, REVS_DEEP, RATES_DEEP, PUMPS)
-tests.extend(generate_tests(N_REPEATS, MAX_DURATION, REVS, RATES, PUMPS))
-runtime = sum([2 * t.repeats * (t.duration + WAIT_S) for t in tests])
-print 'done.'
+    return filter(lambda t: t.duration <= max_duration, tests)
 
 print 'opening serial port...'
 with serial.Serial(
@@ -161,25 +179,18 @@ with serial.Serial(
         print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
-        print 'starting tests (expected runtime {})...'.format(datetime.timedelta(seconds=runtime))
         try:
-            with open(OUTFILE,'w') as f:
-                writer = None
-                for t in tests:
-                    t.run(sio, ser)
-                    print t
-                    if not writer:
-                        print 'Preparing to write results to {}...'.format(OUTFILE)
-                        titles = sorted(tests[0].result.iterkeys())
-                        for title in t.default_result.iterkeys():
-                            titles.remove(title)
-                        titles = t.default_result.keys() + titles
-                        writer = csv.DictWriter(f, titles)
-                        writer.writeheader()
-                        print 'prepared.'
-                    writer.writerow(t.result)
-                    f.flush()
-                print 'done.'
+            for test_set_name, test_set_params in (('deep', DEEP_PARAMS), ('broad', BROAD_PARAMS)):
+                with open(OUTFILE.format(test_set_name),'w') as result_file:
+                    print 'generating tests...'
+                    tests = generate_tests(result_file=result_file, **test_set_params)
+                    runtime = sum([2 * t.repeats * (t.duration + WAIT_S) for t in tests])
+                    print 'done.'
+                    print 'starting {} tests (expected runtime {})...'.format(test_set_name, datetime.timedelta(seconds=runtime))
+                    for t in tests:
+                        t.run(sio, ser)
+                        print t
+                    print 'done.'
         except Exception as e:
             print 'Exiting on error: ' + str(e)
         printer.disconnect()
