@@ -57,7 +57,9 @@ def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
         print "set_to_weight: error = " + str(error)
         revs = - error / MASS_PER_REV
         printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
-        sleep(60 * revs / RATE + wait)
+        sleep_time_s = 60 * math.fabs(revs) / RATE + wait
+        print 'set_to_weight: about to sleep for {}s'.format(sleep_time_s)
+        sleep(sleep_time_s)
         error = read_weight(sio, ser) - target
 
 class Test(object):
