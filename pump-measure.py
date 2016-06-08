@@ -4,7 +4,7 @@ from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
 
-OUTFILE='pump-measure.{{}}{}.csv'.format(dt.utcnow().isoformat())
+OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 
 def read_all(sio, ser):
     read = []
