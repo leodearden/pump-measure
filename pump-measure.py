@@ -9,8 +9,10 @@ OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 def read_all(sio, ser):
     read = []
     while ser.inWaiting():
-        # TODO: wrap this readline in a try except TypeError 
-        read.append(sio.readline())
+        try: 
+            read.append(sio.readline())
+        except TypeError as e:
+            print 'Warning: Caught TypeError ({}) when trying to read from top pan balance.'.format(str(e))
     return read
 
 def drain(sio, ser):
