@@ -9,6 +9,7 @@ OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 def read_all(sio, ser):
     read = []
     while ser.inWaiting():
+        # TODO: wrap this readline in a try except TypeError 
         read.append(sio.readline())
     return read
 
@@ -50,6 +51,7 @@ def read_weight(sio, ser):
     return parse_weight(readings[-1])
 
 def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
+    print 'set_to_weight: target = ' + str(target)
     MASS_PER_REV = 0.22
     RATE = 1000.0
     error = read_weight(sio, ser) - target
@@ -61,6 +63,18 @@ def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
         print 'set_to_weight: about to sleep for {}s'.format(sleep_time_s)
         sleep(sleep_time_s)
         error = read_weight(sio, ser) - target
+
+
+def test_set_to_weight(sio, ser, pump, wait):
+    origin = 150
+    mn = 50
+    set_to_weight(sio, ser, pump, origin, wait)
+    a = 0.5
+    b = 1
+    while a < (origin - mn):
+        set_to_weight(sio, ser, pump, origin + a, wait)
+        set_to_weight(sio, ser, pump, origin - a, wait)
+        a, b = b, a + b
 
 class Test(object):
     def __init__(self, rate, revs, pump, repeats, writer_container, result_file, wait_s, initial_mass):
@@ -191,6 +205,10 @@ parser.add_argument(
     help='Pump this mass of material (decimal g) on to the top pan balance before starting each test (ie: before beginning to take samples with any given combination of pump revolutions and rate).',
     type=float,
     default=100)
+parser.add_argument(
+    '--test-origin', '-o',
+    help='Test script functionality for setting the mass in the balance. Test passes if run completes without reported error.',
+    action='store_true')
 args = parser.parse_args()
 
 if args.short:
@@ -204,8 +222,8 @@ if args.short:
     deep_params = {
         'n_repeats': args.deep,
         'max_duration': 3600,
-        'revs': (0.3, 1),
-        'rates': (100, 3000),
+        'revs': (0.1, 0.3, 1),
+        'rates': (100),
         'pumps': [args.pump]
     }
 else:
@@ -249,6 +267,8 @@ with serial.Serial(
         print 'configuring Smoothie board...'
         printer.send("G91")
         print 'done.'
+        if args.test_origin:
+            test_set_to_weight(sio, ser, args.pump, args.wait)
         for test_set_name, test_set_params in (('deep', deep_params), ('broad', broad_params)):
             result_file_name = os.path.join(args.result_path, OUTFILE.format(test_set_name))
             if test_set_params['n_repeats']:
