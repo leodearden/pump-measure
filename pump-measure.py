@@ -175,6 +175,11 @@ def generate_tests(n_repeats, max_duration, revs, rates, pumps, result_file, arg
     ]
     return filter(lambda t: t.duration <= max_duration, tests)
 
+def estimate_runtime(tests):
+    runtime = sum([2 * t.repeats * (t.duration + t.wait_s) for t in tests])
+    formatted_time_remaining = datetime.timedelta(seconds=runtime)
+    return formatted_time_remaining
+
 parser = argparse.ArgumentParser(description='Test a pump. Write the results in CSV format to one or more files.')
 parser.add_argument(
     '--pump', '-p',
@@ -288,10 +293,10 @@ with serial.Serial(
                 with open(result_file_name,'w') as result_file:
                     print 'generating {} tests...'.format(test_set_name)
                     tests = generate_tests(args=args, result_file=result_file, **test_set_params)
-                    runtime = sum([2 * t.repeats * (t.duration + t.wait_s) for t in tests])
                     print 'done.'
-                    print 'starting {} tests (expected runtime {})...'.format(test_set_name, datetime.timedelta(seconds=runtime))
-                    for t in tests:
+                    print 'starting {} tests ({} parameter combinations, expected runtime {})...'.format(test_set_name, len(tests), estimate_runtime(tests))
+                    for i, t in enumerate(tests):
+                        print 'starting test {} of {}, estimated remaining runtime {}'.format(i+1, len(tests), estimate_runtime(tests[i:]))
                         t.run(sio, ser)
                         print t
                     print 'done.'
