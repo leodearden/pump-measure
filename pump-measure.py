@@ -8,11 +8,21 @@ OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 
 def read_all(sio, ser):
     read = []
+    keepNextLine = True
     while ser.inWaiting():
         try: 
-            read.append(sio.readline())
+            line = sio.readline()
+            if keepNextLine:
+                read.append(line)
+            else:
+                print 'Discarding potentially corrupt or incomplete line ({})'.format(line)
+                keepNextLine = True
         except TypeError as e:
-            print 'Warning: Caught TypeError ({}) when trying to read from top pan balance.'.format(str(e))
+            print 'Warning: Caught TypeError ({}) when trying to read from top pan balance. Draining raw input and discarding next line.'.format(str(e))
+#             ser.flushInput()
+            drained = ser.read(100000)
+            print 'Drained {} raw characters ({}).'.format(len(drained), drained)
+            keepNextLine = False
     return read
 
 def drain(sio, ser):
@@ -248,6 +258,7 @@ print 'opening serial port...'
 with serial.Serial(
     port=args.top_pan_balance,
     baudrate=9600,
+    timeout=0.5
 ) as ser:
     print 'done.'
     print 'creating IOWrapper...'
