@@ -6,10 +6,10 @@ from datetime import datetime as dt
 
 OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 
-def read_all(sio, ser):
+def read_all(sio, ser, at_least_one=False):
     read = []
     keepNextLine = True
-    while ser.inWaiting():
+    while ser.inWaiting() or (at_least_one and not read):
         try: 
             line = sio.readline()
             if keepNextLine:
@@ -40,7 +40,7 @@ def read_weights(sio, ser):
     while True:
         try:
             print 'about to read from balance...'
-            readings = read_all(sio, ser)
+            readings = read_all(sio, ser, at_least_one=True)
             print '{} read from scales: {}'.format(dt.utcnow().isoformat(), readings)
             values = []
             for reading in readings:
@@ -58,8 +58,8 @@ def read_weights(sio, ser):
 def read_weight(sio, ser):
     drain(sio, ser)
     readings = []
-    while not readings:
-        readings = read_all(sio, ser)
+    readings = read_all(sio, ser, at_least_one=True)
+    assert readings
     return parse_weight(readings[-1])
 
 def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
