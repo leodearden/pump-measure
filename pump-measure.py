@@ -205,6 +205,11 @@ parser.add_argument(
     help='Run short versions of any requested suites, with more limited combinations of parameters.',
     action='store_true')
 parser.add_argument(
+    '--skip',
+    help='Skip this many tests',
+    type=int,
+    default=0)
+parser.add_argument(
     '--top-pan-balance', '-t',
     help='Read fluid mass measurements from a top pan balance connected to this serial port.',
     default='/dev/tty.usbserial')
@@ -295,7 +300,7 @@ with serial.Serial(
                     tests = generate_tests(args=args, result_file=result_file, **test_set_params)
                     print 'done.'
                     print 'starting {} tests ({} parameter combinations, expected runtime {})...'.format(test_set_name, len(tests), estimate_runtime(tests))
-                    for i, t in enumerate(tests):
+                    for i, t in [(i, t) for i, t in enumerate(tests) if i >= args.skip]:
                         print 'starting test {} of {}, estimated remaining runtime {}'.format(i+1, len(tests), estimate_runtime(tests[i:]))
                         t.run(sio, ser)
                         print t
