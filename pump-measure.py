@@ -3,6 +3,7 @@ import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os
 from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
+from types import MethodType
 
 OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 
@@ -180,6 +181,53 @@ def estimate_runtime(tests):
     formatted_time_remaining = datetime.timedelta(seconds=runtime)
     return formatted_time_remaining
 
+def patched_send(self, command, lineno = 0, calcchecksum = False):
+    # Only add checksums if over serial (tcp does the flow control itself)
+    if calcchecksum and not self.printer_tcp:
+        prefix = "N" + str(lineno) + " " + command
+        command = prefix + "*" + str(self._checksum(prefix))
+        if "M110" not in command:
+            self.sentlines[lineno] = command
+    if self.printer:
+        if self.writefailures > 3:
+            self.logError(_(u"Too many failures to write to printer. Bouncing connection."))
+            self.disconnect()
+            self.connect()
+        self.sent.append(command)
+        # run the command through the analyzer
+        gline = None
+        try:
+            gline = self.analyzer.append(command, store = False)
+        except:
+            logging.warning(_("Could not analyze command %s:") % command +
+                            "\n" + traceback.format_exc())
+        if self.loud:
+            logging.info("SENT: %s" % command)
+        if self.sendcb:
+            try: self.sendcb(command, gline)
+            except: self.logError(traceback.format_exc())
+        try:
+            self.printer.write(str(command + "\n"))
+            if self.printer_tcp:
+                try:
+                    self.printer.flush()
+                except socket.timeout:
+                    pass
+            self.writefailures = 0
+        except socket.error as e:
+            if e.errno is None:
+                self.logError(_(u"Can't write to printer (disconnected ?):") +
+                              "\n" + traceback.format_exc())
+            else:
+                self.logError(_(u"Can't write to printer (disconnected?) (Socket error {0}): {1}").format(e.errno, decode_utf8(e.strerror)))
+            self.writefailures += 1
+        except SerialException as e:
+            self.logError(_(u"Can't write to printer (disconnected?) (SerialException): {0}").format(decode_utf8(str(e))))
+            self.writefailures += 1
+        except RuntimeError as e:
+            self.logError(_(u"Socket connection broken, disconnected. ({0}): {1}").format(e.errno, decode_utf8(e.strerror)))
+            self.writefailures += 1
+
 parser = argparse.ArgumentParser(description='Test a pump. Write the results in CSV format to one or more files.')
 parser.add_argument(
     '--pump', '-p',
@@ -284,6 +332,7 @@ with serial.Serial(
         printer_interface = usb_modem_names[0]
         print 'opening printer_interface = {} ...'.format(printer_interface)
         printer = printcore()
+        printer._send = MethodType(patched_send, printer)
         printer.connect(port=printer_interface, baud=115200)
         print 'done.'
         sleep(3)
