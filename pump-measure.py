@@ -31,11 +31,11 @@ def drain(sio, ser):
 #     print 'draining done ({} lines).'.format(len(read))
 
 def parse_weight(reading):
-                match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
-                if match:
-                    return float(match.group(1))
-                else:
-                    return None
+    match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
+    if match:
+        return float(match.group(1))
+    else:
+        return None
 
 def read_weights(sio, ser):
     while True:
