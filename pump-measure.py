@@ -1,11 +1,13 @@
 #!/usr/bin/env python
-import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os
+import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os, logging
 from printrun.printcore import printcore
 from time import sleep
 from datetime import datetime as dt
 from types import MethodType
 
 OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 def read_all(sio, ser, at_least_one=False):
     read = []
@@ -16,12 +18,12 @@ def read_all(sio, ser, at_least_one=False):
             if keepNextLine:
                 read.append(line)
             else:
-                print 'Discarding potentially corrupt or incomplete line ({})'.format(line)
+                log.debug('Discarding potentially corrupt or incomplete line ({})'.format(line))
                 keepNextLine = True
         except TypeError as e:
-            print 'Warning: Caught TypeError ({}) when trying to read from top pan balance. Draining raw input and discarding next line.'.format(str(e))
+            log.warn('Caught TypeError ({}) when trying to read from top pan balance. Draining raw input and discarding next line.'.format(str(e)))
             drained = ser.read(100000)
-            print 'Drained {} raw characters ({}).'.format(len(drained), drained)
+            log.debug('Drained {} raw characters ({}).'.format(len(drained), drained))
             keepNextLine = False
     return read
 
@@ -38,20 +40,19 @@ def parse_weight(reading):
 def read_weights(sio, ser):
     while True:
         try:
-            print 'about to read from balance...'
+            log.debug('about to read from balance...')
             readings = read_all(sio, ser, at_least_one=True)
-            print '{} read from scales: {}'.format(dt.utcnow().isoformat(), readings)
+            log.debug('{} read from balance: {}'.format(dt.utcnow().isoformat(), readings))
             values = []
             for reading in readings:
                 weight = parse_weight(reading)
                 if weight:
                     values.append(weight)
                 else:
-                    print "couldn't parse printer message: '{}'".format(reading)
+                    log.warn("couldn't parse printer message: '{}'".format(reading))
             return min(values), max(values)
         except serial.SerialException as e:
-            #There is no new data from serial port
-            print 'trying again to read'
+            log.info('SerialException on read ({}). Trying again.'.format(e))
             continue
 
 def read_weight(sio, ser):
@@ -62,19 +63,19 @@ def read_weight(sio, ser):
     return parse_weight(readings[-1])
 
 def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
-    print 'set_to_weight: target = ' + str(target)
+    log.debug('set_to_weight: target = ' + str(target))
     MASS_PER_REV = 0.2
     RATE = 1000.0
     error = read_weight(sio, ser) - target
 #    while math.fabs(error) > eps:
-    print "set_to_weight: initial error = " + str(error)
+    log.debug("set_to_weight: initial error = " + str(error))
     revs = - error / MASS_PER_REV
     printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
     sleep_time_s = 60 * math.fabs(revs) / RATE + wait
-    print 'set_to_weight: about to sleep for {}s'.format(sleep_time_s)
+    log.debug('set_to_weight: about to sleep for {}s'.format(sleep_time_s))
     sleep(sleep_time_s)
     error = read_weight(sio, ser) - target
-    print "set_to_weight: final error = " + str(error)
+    log.info("set_to_weight: final error = " + str(error))
 
 
 def test_set_to_weight(sio, ser, pump, wait):
@@ -125,7 +126,7 @@ class Test(object):
     @property
     def result_writer(self):
         if not self.writer_container:
-            print 'Preparing to write results to {}...'.format(self.result_file.name)
+            log.debug('Preparing to write results to {}...'.format(self.result_file.name))
             titles = sorted(self.result.iterkeys())
             # Move the default result columns to the start 
             for title in self.default_result.iterkeys():
@@ -133,7 +134,7 @@ class Test(object):
             titles = self.default_result.keys() + titles
             writer = csv.DictWriter(self.result_file, titles)
             writer.writeheader()
-            print 'prepared.'
+            log.debug('prepared.')
             self.writer_container.append(writer)
         return self.writer_container[0]
 
@@ -145,12 +146,12 @@ class Test(object):
             start_weight = read_weight(sio, ser)
             for command, name in ((self.forward, 'F'), (self.back, 'R')):
                 drain(sio, ser)
-                print 'sending "{}"'.format(command)
+                log.debug('sending "{}"'.format(command))
                 printer.send(command)
                 sleep(self.duration + self.wait_s)
                 mn, mx = read_weights(sio, ser)
                 delta = mx - mn
-                print 'mn = {}, mx = {}, delta = {}'.format(mn, mx, delta)
+                log.debug('mn = {}, mx = {}, delta = {}'.format(mn, mx, delta))
                 self.result['T{:03}_{}_n'.format(rep, name)] = mn
                 self.result['T{:03}_{}_x'.format(rep, name)] = mx
                 self.result['T{:03}_{}_d'.format(rep, name)] = delta
@@ -311,46 +312,44 @@ else:
         'pumps': [args.pump]
     }
 
-print 'opening serial port...'
+log.debug('opening serial port...')
 with serial.Serial(
     port=args.top_pan_balance,
     baudrate=9600,
     timeout=0.5
 ) as ser:
-    print 'done.'
-    print 'creating IOWrapper...'
+    log.debug('done.')
+    log.debug('creating IOWrapper...')
     with io.TextIOWrapper(
         io.BufferedReader(ser, 1),
         newline='\r',
         errors='backslashreplace'
     ) as sio:
-        print 'done.'
+        log.debug('done.')
         usb_modem_names = glob.glob(args.controller)
         assert len(usb_modem_names) > 0, "No Smoothieboard found. Try '--controller=<controller_port>'?"
         assert len(usb_modem_names) == 1, "More than one file matches. Can't tell which one is the Smoothieboard."
         printer_interface = usb_modem_names[0]
-        print 'opening printer_interface = {} ...'.format(printer_interface)
+        log.debug('opening printer_interface = {} ...'.format(printer_interface))
         printer = printcore()
         printer._send = MethodType(patched_send, printer)
         printer.connect(port=printer_interface, baud=115200)
-        print 'done.'
+        log.debug('done.')
         sleep(3)
-        print 'configuring Smoothie board...'
         printer.send("G91")
-        print 'done.'
         if args.test_origin:
             test_set_to_weight(sio, ser, args.pump, args.wait)
         for test_set_name, test_set_params in (('deep', deep_params), ('broad', broad_params)):
             result_file_name = os.path.join(args.result_path, OUTFILE.format(test_set_name))
             if test_set_params['n_repeats']:
                 with open(result_file_name,'w') as result_file:
-                    print 'generating {} tests...'.format(test_set_name)
+                    log.debug('generating {} tests...'.format(test_set_name))
                     tests = generate_tests(args=args, result_file=result_file, **test_set_params)
-                    print 'done.'
-                    print 'starting {} tests ({} parameter combinations, expected runtime {})...'.format(test_set_name, len(tests), estimate_runtime(tests))
+                    log.debug('done.')
+                    log.info('starting {} tests ({} parameter combinations, expected runtime {})...'.format(test_set_name, len(tests), estimate_runtime(tests)))
                     for i, t in [(i, t) for i, t in enumerate(tests) if i >= args.skip]:
-                        print 'starting test {} of {}, estimated remaining runtime {}'.format(i+1, len(tests), estimate_runtime(tests[i:]))
+                        log.debug('starting test {} of {}, estimated remaining runtime {}'.format(i+1, len(tests), estimate_runtime(tests[i:])))
                         t.run(sio, ser)
-                        print t
-                    print 'done.'
+                        log.debug('test {} of {} complete: \n{}'.format(i+1, len(tests), str(t)))
+                    log.info('done.')
         printer.disconnect()
