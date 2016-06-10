@@ -6,7 +6,7 @@ from datetime import datetime as dt
 from types import MethodType
 
 OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
-log = logging.getLogger(__name__)
+log = logging.getLogger('pm')
 log.setLevel(logging.DEBUG)
 
 def rsleep(sleep_s):
