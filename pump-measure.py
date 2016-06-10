@@ -63,17 +63,18 @@ def read_weight(sio, ser):
 
 def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
     print 'set_to_weight: target = ' + str(target)
-    MASS_PER_REV = 0.22
+    MASS_PER_REV = 0.2
     RATE = 1000.0
     error = read_weight(sio, ser) - target
-    while math.fabs(error) > eps:
-        print "set_to_weight: error = " + str(error)
-        revs = - error / MASS_PER_REV
-        printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
-        sleep_time_s = 60 * math.fabs(revs) / RATE + wait
-        print 'set_to_weight: about to sleep for {}s'.format(sleep_time_s)
-        sleep(sleep_time_s)
-        error = read_weight(sio, ser) - target
+#    while math.fabs(error) > eps:
+    print "set_to_weight: initial error = " + str(error)
+    revs = - error / MASS_PER_REV
+    printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
+    sleep_time_s = 60 * math.fabs(revs) / RATE + wait
+    print 'set_to_weight: about to sleep for {}s'.format(sleep_time_s)
+    sleep(sleep_time_s)
+    error = read_weight(sio, ser) - target
+    print "set_to_weight: final error = " + str(error)
 
 
 def test_set_to_weight(sio, ser, pump, wait):
