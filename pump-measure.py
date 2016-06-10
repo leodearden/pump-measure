@@ -1,13 +1,32 @@
 #!/usr/bin/env python
 import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os, logging
 from printrun.printcore import printcore
-from time import sleep
+from time import sleep, time
 from datetime import datetime as dt
 from types import MethodType
 
 OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
+
+def rsleep(sleep_s):
+    RELATIVE_CORRECTION = 0.8
+    EPS = 0.01
+    DEBUG_RELATIVE_ERR = 0.05
+    WARN_RELATIVE_ERR = 0.19
+    now_s = time()
+    target_s = now_s + sleep_s
+    while now_s + EPS < target_s:
+        sleep_command_s = (target_s - now_s) * RELATIVE_CORRECTION
+        before_s = time()
+        sleep(sleep_command_s)
+        now_s = time()
+        sleep_actual_s = now_s - before_s
+        relative_err = sleep_actual_s / sleep_command_s - 1
+        if math.fabs(relative_err) > WARN_RELATIVE_ERR:
+            log.warn('Very inaccurate sleep (command = {}s, actual = {}s, relative err = {})'.format(sleep_command_s, sleep_actual_s, relative_err))
+        elif math.fabs(relative_err) > DEBUG_RELATIVE_ERR:
+            log.debug('Inaccurate sleep (command = {}s, actual = {}s, relative err = {})'.format(sleep_command_s, sleep_actual_s, relative_err))
 
 def read_all(sio, ser, at_least_one=False):
     read = []
@@ -73,7 +92,7 @@ def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
     printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
     sleep_time_s = 60 * math.fabs(revs) / RATE + wait
     log.debug('set_to_weight: about to sleep for {}s'.format(sleep_time_s))
-    sleep(sleep_time_s)
+    rsleep(sleep_time_s)
     error = read_weight(sio, ser) - target
     log.info("set_to_weight: final error = " + str(error))
 
@@ -148,7 +167,7 @@ class Test(object):
                 drain(sio, ser)
                 log.debug('sending "{}"'.format(command))
                 printer.send(command)
-                sleep(self.duration + self.wait_s)
+                rsleep(self.duration + self.wait_s)
                 mn, mx = read_weights(sio, ser)
                 delta = mx - mn
                 log.debug('mn = {}, mx = {}, delta = {}'.format(mn, mx, delta))
@@ -335,7 +354,7 @@ with serial.Serial(
         printer._send = MethodType(patched_send, printer)
         printer.connect(port=printer_interface, baud=115200)
         log.debug('done.')
-        sleep(3)
+        rsleep(3)
         printer.send("G91")
         if args.test_origin:
             test_set_to_weight(sio, ser, args.pump, args.wait)
