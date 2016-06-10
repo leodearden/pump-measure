@@ -83,7 +83,7 @@ def read_weight(sio, ser):
 
 def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
     log.debug('set_to_weight: target = ' + str(target))
-    MASS_PER_REV = 0.2
+    MASS_PER_REV = 0.23
     RATE = 1000.0
     error = read_weight(sio, ser) - target
 #    while math.fabs(error) > eps:
