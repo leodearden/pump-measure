@@ -20,7 +20,6 @@ def read_all(sio, ser, at_least_one=False):
                 keepNextLine = True
         except TypeError as e:
             print 'Warning: Caught TypeError ({}) when trying to read from top pan balance. Draining raw input and discarding next line.'.format(str(e))
-#             ser.flushInput()
             drained = ser.read(100000)
             print 'Drained {} raw characters ({}).'.format(len(drained), drained)
             keepNextLine = False
@@ -28,7 +27,6 @@ def read_all(sio, ser, at_least_one=False):
 
 def drain(sio, ser):
     read = read_all(sio, ser)
-#     print 'draining done ({} lines).'.format(len(read))
 
 def parse_weight(reading):
     match = re.search(r'([0-9.]+)g', reading, re.DOTALL)
