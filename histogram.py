@@ -2,6 +2,7 @@
 import numpy, csv, argparse
 import matplotlib.pyplot as plt
 from numpy.random import normal
+import itertools
 
 # gaussian_numbers = normal(size=1000)
 # plt.hist(gaussian_numbers)
@@ -9,6 +10,7 @@ from numpy.random import normal
 # plt.xlabel("Value")
 # plt.ylabel("Frequency")
 # plt.show()
+
 
 parser = argparse.ArgumentParser(description='Analyse and plot from a pump-measure results file.')
 parser.add_argument(
@@ -20,8 +22,37 @@ print 'Analysing {}'.format(args.input_file)
 df = open(args.input_file)
 dr = csv.DictReader(df)
 d = list(dr)
-for r in d:
-    for suffix, name in (('F_d', 'forward'), ('R_d', 'reverse')):
-        plt.hist(numpy.array([float(r[k]) for k in r.keys() if (k[-3:] == suffix)]), normed=True)
-        plt.title('{} (revs = {}, rate = {})'.format(name, str(r['revs']), str(r['rate'])))
-        plt.show()
+# Parse data into JSONable structure
+measurements = (('F_d', 'forward'), ('R_d', 'reverse'))
+data = {
+    (float(r['revs']), float(r['rate'])): {
+        name: numpy.array(
+            [
+                float(r[k])
+                for k in r.keys()
+                if (k[-3:] == suffix)
+            ])
+        for suffix, name in measurements
+    }
+    for r in d
+}
+
+print data
+
+all_revs = sorted(set([rev for rev, _ in data.iterkeys()]))
+all_rates = sorted(set([rate for _, rate in data.iterkeys()]))
+
+measurement_names = [name for _, name in measurements]
+for name in measurement_names:
+    fig, axies = plt.subplots(nrows=len(all_revs), ncols=len(all_rates))
+    fig.suptitle(name)
+    for (i, revs), (j, rate) in itertools.product(enumerate(all_revs, 0), enumerate(all_rates, 0)):
+        print 'looking for ({}, {})'.format(revs, rate)
+        if (revs, rate) in data:
+            test_results = data[revs, rate]
+            title = 'revs = {}, rate = {}'.format(str(revs), str(rate), name)
+            print "plotting " + title
+            axis = axies[i][j]
+            axis.hist(test_results['forward'], normed=True)
+            axis.set_title(title)
+plt.show()
