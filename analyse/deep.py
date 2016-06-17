@@ -1,16 +1,7 @@
 #!/usr/bin/env python
 import numpy, csv, argparse
 import matplotlib.pyplot as plt
-from numpy.random import normal
 import itertools
-
-# gaussian_numbers = normal(size=1000)
-# plt.hist(gaussian_numbers)
-# plt.title("Gaussian Histogram")
-# plt.xlabel("Value")
-# plt.ylabel("Frequency")
-# plt.show()
-
 
 parser = argparse.ArgumentParser(description='Analyse and plot from a pump-measure results file.')
 parser.add_argument(
@@ -43,16 +34,18 @@ all_revs = sorted(set([rev for rev, _ in data.iterkeys()]))
 all_rates = sorted(set([rate for _, rate in data.iterkeys()]))
 
 measurement_names = [name for _, name in measurements]
+figs = {}
+axiess = {}
 for name in measurement_names:
-    fig, axies = plt.subplots(nrows=len(all_revs), ncols=len(all_rates))
-    fig.suptitle(name)
+    figs[name], axiess[name] = plt.subplots(nrows=len(all_revs), ncols=len(all_rates))
+    figs[name].suptitle(name)
     for (i, revs), (j, rate) in itertools.product(enumerate(all_revs, 0), enumerate(all_rates, 0)):
         print 'looking for ({}, {})'.format(revs, rate)
         if (revs, rate) in data:
             test_results = data[revs, rate]
             title = 'revs = {}, rate = {}'.format(str(revs), str(rate), name)
             print "plotting " + title
-            axis = axies[i][j]
+            axis = axiess[name][i][j]
             axis.hist(test_results['forward'], normed=True)
             axis.set_title(title)
 plt.show()
