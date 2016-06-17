@@ -46,6 +46,6 @@ for name in measurement_names:
             title = 'revs = {}, rate = {}'.format(str(revs), str(rate), name)
             print "plotting " + title
             axis = axiess[name][i][j]
-            axis.hist(test_results['forward'], normed=True)
+            axis.hist(test_results[name], normed=True)
             axis.set_title(title)
 plt.show()
