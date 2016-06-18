@@ -50,34 +50,32 @@ axiess = {}
 for name in measurement_names:
     figs[name], axiess[name] = plt.subplots(nrows=len(all_revs),
                                             ncols=len(all_rates),
-                                            sharex=True,
-                                            sharey=True,
-                                            subplot_kw={
-                                                'xscale':'log',
-                                                'yscale':'log'
-                                            })
+                                            sharex=True)
     figs[name].suptitle(name)
-#     all_data_for_name = sum(
-#         [
-#             data.get((revs, rate), {name:[]})[name]
-#             for revs in all_revs
-#             for rate in all_rates], 
-#         [])
-#     min_datum = min(
-#         all_data_for_name)
-#     max_datum = max(
-#         all_data_for_name)
-    for (i, revs), (j, rate) in itertools.product(enumerate(all_revs, 0), enumerate(all_rates, 0)):
-        print 'looking for ({}, {})'.format(revs, rate)
-        if (revs, rate) in data:
-            test_results = numpy.array(data[revs, rate][name])
-            title = 'revs = {}, rate = {}'.format(str(revs), str(rate))
-            print "charting " + title
+    for i, revs in enumerate(all_revs, 0):
+        all_relevant_data = sum(
+            [
+                data.get((revs, rate), {name:[]})[name]
+                for rate in all_rates], 
+            [])
+        min_datum = min(
+            all_relevant_data)
+        max_datum = max(
+            all_relevant_data)
+        for j, rate in enumerate(all_rates, 0):
+            print 'looking for ({}, {})'.format(revs, rate)
             axis = axiess[name][i][j]
-            if args.histogram:
-                axis.hist(test_results, normed=True)
-            if args.time_series:
-                axis.plot(test_results)
-            axis.set_title(title)
+            if (revs, rate) in data:
+                test_results = numpy.array(data[revs, rate][name])
+                title = '{}, {}'.format(str(revs), str(rate))
+                print "charting " + title
+                axis.set_ylim(min_datum, max_datum)
+                if args.histogram:
+                    axis.hist(test_results, normed=True)
+                if args.time_series:
+                    axis.plot(test_results)
+                axis.set_title(title)
+            else:
+                axis.set_visible(False)
 
 plt.show()
