@@ -5,9 +5,9 @@ import itertools
 
 
 def extract_data(d, measurements):
-    return {
+    data = {
         (float(r['revs']), float(r['rate'])): {
-            name: [
+            name:[
                 float(r[k])
                 for k in r.keys()
                 if k[-3:] == suffix
@@ -16,6 +16,7 @@ def extract_data(d, measurements):
         }
         for r in d
     }
+    return data
 
 parser = argparse.ArgumentParser(description='Analyse and plot from a pump-measure results file.')
 parser.add_argument(
@@ -37,33 +38,46 @@ dr = csv.DictReader(df)
 d = list(dr)
 # Parse data into JSONable structure
 measurements = (('F_d', 'forward'), ('R_d', 'reverse'))
-data = name = extract_data(d, measurements)
+data = extract_data(d, measurements)
 
 all_revs = sorted(set([rev for rev, _ in data.iterkeys()]))
 all_rates = sorted(set([rate for _, rate in data.iterkeys()]))
 
 measurement_names = [name for _, name in measurements]
+
 figs = {}
 axiess = {}
 for name in measurement_names:
-    figs[name], axiess[name] = plt.subplots(nrows=len(all_revs), ncols=len(all_rates))
+    figs[name], axiess[name] = plt.subplots(nrows=len(all_revs),
+                                            ncols=len(all_rates),
+                                            sharex=True,
+                                            sharey=True,
+                                            subplot_kw={
+                                                'xscale':'log',
+                                                'yscale':'log'
+                                            })
     figs[name].suptitle(name)
+#     all_data_for_name = sum(
+#         [
+#             data.get((revs, rate), {name:[]})[name]
+#             for revs in all_revs
+#             for rate in all_rates], 
+#         [])
+#     min_datum = min(
+#         all_data_for_name)
+#     max_datum = max(
+#         all_data_for_name)
     for (i, revs), (j, rate) in itertools.product(enumerate(all_revs, 0), enumerate(all_rates, 0)):
         print 'looking for ({}, {})'.format(revs, rate)
         if (revs, rate) in data:
+            test_results = numpy.array(data[revs, rate][name])
+            title = 'revs = {}, rate = {}'.format(str(revs), str(rate))
+            print "charting " + title
+            axis = axiess[name][i][j]
             if args.histogram:
-                test_results = numpy.array(data[revs, rate][name])
-                title = 'revs = {}, rate = {}'.format(str(revs), str(rate))
-                print "histogram " + title
-                axis = axiess[name][i][j]
                 axis.hist(test_results, normed=True)
-                axis.set_title(title)
             if args.time_series:
-                test_results = numpy.array(data[revs, rate][name])
-                title = 'revs = {}, rate = {}'.format(str(revs), str(rate))
-                print "plotting " + title
-                axis = axiess[name][i][j]
                 axis.plot(test_results)
-                axis.set_title(title)
+            axis.set_title(title)
 
 plt.show()
