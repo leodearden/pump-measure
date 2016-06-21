@@ -5,7 +5,7 @@ from time import sleep, time
 from datetime import datetime as dt
 from types import MethodType
 
-OUTFILE='pump-measure.{{}}.{}.csv'.format(dt.utcnow().isoformat())
+OUTFILE='pump-measure.{{}}.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 log = logging.getLogger('pm')
 log.setLevel(logging.DEBUG)
 
@@ -249,6 +249,33 @@ def patched_send(self, command, lineno = 0, calcchecksum = False):
 
 parser = argparse.ArgumentParser(description='Test a pump. Write the results in CSV format to one or more files.')
 parser.add_argument(
+    '--broad', '-b',
+    help='Run the broad test suite: Get the specified number of samples for each of a large range of volumes and rates.',
+    type=int,
+    default=10)
+parser.add_argument(
+    '--controller', '-c',
+    help='Send pump move commands to a G-code interpreter connected to this serial port. This can be a file glob.',
+    default='/dev/tty.usbmodem*')
+parser.add_argument(
+    '--deep', '-d',
+    help='Run the deep test suite: Get the specified number of samples for each of a small range of small volumes.',
+    type=int,
+    default=0)
+parser.add_argument(
+    '--initial-mass', '-m',
+    help='Pump this mass of material (decimal g) on to the top pan balance before starting each test (ie: before beginning to take samples with any given combination of pump revolutions and rate).',
+    type=float,
+    default=100)
+parser.add_argument(
+    '--name', '-n',
+    help='Tag the results files with this name.',
+    default='unnamed')
+parser.add_argument(
+    '--test-origin', '-o',
+    help='Test script functionality for setting the mass in the balance. Test passes if run completes without reported error.',
+    action='store_true')
+parser.add_argument(
     '--pump', '-p',
     help='Test this pump',
     choices=['X', 'Y', 'Z'],
@@ -257,16 +284,6 @@ parser.add_argument(
     '--result-path', '-r',
     help='Write the result files to this directory. The directory must exist.',
     default='/tmp')
-parser.add_argument(
-    '--deep', '-d',
-    help='Run the deep test suite: Get the specified number of samples for each of a small range of small volumes.',
-    type=int,
-    default=0)
-parser.add_argument(
-    '--broad', '-b',
-    help='Run the broad test suite: Get the specified number of samples for each of a large range of volumes and rates.',
-    type=int,
-    default=10)
 parser.add_argument(
     '--short', '-s',
     help='Run short versions of any requested suites, with more limited combinations of parameters.',
@@ -281,23 +298,10 @@ parser.add_argument(
     help='Read fluid mass measurements from a top pan balance connected to this serial port.',
     default='/dev/tty.usbserial')
 parser.add_argument(
-    '--controller', '-c',
-    help='Send pump move commands to a G-code interpreter connected to this serial port. This can be a file glob.',
-    default='/dev/tty.usbmodem*')
-parser.add_argument(
     '--wait', '-w',
     help='Wait this many seconds after the end of the pumping operation before taking a mass measurement (to allow the top pan balance to stabilise). Can be any decimal.',
     type=float,
     default=2.5)
-parser.add_argument(
-    '--initial-mass', '-m',
-    help='Pump this mass of material (decimal g) on to the top pan balance before starting each test (ie: before beginning to take samples with any given combination of pump revolutions and rate).',
-    type=float,
-    default=100)
-parser.add_argument(
-    '--test-origin', '-o',
-    help='Test script functionality for setting the mass in the balance. Test passes if run completes without reported error.',
-    action='store_true')
 args = parser.parse_args()
 
 if args.short:
@@ -359,7 +363,7 @@ with serial.Serial(
         if args.test_origin:
             test_set_to_weight(sio, ser, args.pump, args.wait)
         for test_set_name, test_set_params in (('deep', deep_params), ('broad', broad_params)):
-            result_file_name = os.path.join(args.result_path, OUTFILE.format(test_set_name))
+            result_file_name = os.path.join(args.result_path, OUTFILE.format(args.name, test_set_name))
             if test_set_params['n_repeats']:
                 with open(result_file_name,'w') as result_file:
                     log.debug('generating {} tests...'.format(test_set_name))
