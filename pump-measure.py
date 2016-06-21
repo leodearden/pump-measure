@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os, logging, sys
+import serial, io, re, itertools, glob, csv, math, datetime, argparse, os, logging, sys
 from printrun.printcore import printcore
 from time import sleep, time
 from datetime import datetime as dt
