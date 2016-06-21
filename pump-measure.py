@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os, logging
+import serial, io, re, numpy, itertools, glob, csv, math, datetime, argparse, os, logging, sys
 from printrun.printcore import printcore
 from time import sleep, time
 from datetime import datetime as dt
@@ -246,6 +246,8 @@ def patched_send(self, command, lineno = 0, calcchecksum = False):
         except RuntimeError as e:
             self.logError(_(u"Socket connection broken, disconnected. ({0}): {1}").format(e.errno, decode_utf8(e.strerror)))
             self.writefailures += 1
+
+log.info(' '.join(sys.argv))
 
 parser = argparse.ArgumentParser(description='Test a pump. Write the results in CSV format to one or more files.')
 parser.add_argument(
