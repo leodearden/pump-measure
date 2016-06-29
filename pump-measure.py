@@ -325,21 +325,21 @@ else:
     broad_params = {
         'n_repeats': args.broad,
         'max_duration': 61,
- #      Reversal of param's to test Leo's silicone hypothesis
- #       'revs': (1, 3, 10, 32, 100, 320, 600),
- #       'rates': (1, 3, 10, 32, 100, 320, 560, 1000, 1300, 1800, 2400, 3000),
-         'revs': (600, 320, 100, 32, 10, 3, 1),
-         'rates': (3000, 2400, 1800, 1300, 1000, 560, 320, 100, 32, 10, 3, 1),
+#       'revs': (1, 3, 10, 32, 100, 320, 600),
+#       'rates': (1, 3, 10, 32, 100, 320, 560, 1000, 1300, 1800, 2400, 3000),
+#       'revs': (600, 320, 100, 32, 10, 3, 1),
+#       'rates': (3000, 2400, 1800, 1300, 1000, 560, 320, 100, 32, 10, 3, 1),
+        'revs': (600, 320, 100, 32, 10),
+        'rates': (1800, 1300, 1000, 560, 320, 100, 32, 10),
         'pumps': [args.pump]
     }
     deep_params = {
         'n_repeats': args.deep,
         'max_duration': 36000,
-#      Reversal of param's to test Leo's silicone hypothesis
 #        'revs': (0.1, 0.3, 1),
 #        'rates': (10, 100, 3000),
         'revs': (1, 0.3, 0.1),
-        'rates': (3000, 100, 10),
+        'rates': (1000, 100, 10),
         'pumps': [args.pump]
     }
 
