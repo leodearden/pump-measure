@@ -5,7 +5,6 @@ from time import sleep, time
 from datetime import datetime as dt
 from types import MethodType
 
-OUTFILE='pump-measure.{{}}.{{}}.{}.csv'.format(dt.utcnow().isoformat())
 log = logging.getLogger('pm')
 log.setLevel(logging.DEBUG)
 
@@ -270,13 +269,14 @@ parser.add_argument(
     type=float,
     default=100)
 parser.add_argument(
+    '--fluid', '-f',
+    help='Test the specified fluid. Adjusts test parameters to suit fluid rheology, etc.',
+    choices=['water', 'S350'],
+    default='water')
+parser.add_argument(
     '--name', '-n',
     help='Tag the results files with this name.',
     default='unnamed')
-parser.add_argument(
-    '--test-origin', '-o',
-    help='Test script functionality for setting the mass in the balance. Test passes if run completes without reported error.',
-    action='store_true')
 parser.add_argument(
     '--pump', '-p',
     help='Test this pump',
@@ -287,14 +287,19 @@ parser.add_argument(
     help='Write the result files to this directory. The directory must exist.',
     default='/tmp')
 parser.add_argument(
-    '--short', '-s',
-    help='Run short versions of any requested suites, with more limited combinations of parameters.',
-    action='store_true')
-parser.add_argument(
     '--skip',
     help='Skip this many tests',
     type=int,
     default=0)
+parser.add_argument(
+    '--test-origin', '-o',
+    help='Test script functionality for setting the mass in the balance. Test passes if run completes without reported error.',
+    action='store_true')
+parser.add_argument(
+    '--test-scope', '-s',
+    help='Select the breadth and depth of the test parameter combinations, for various speed/completeness trade-offs.',
+    choices=['full', 'short', 'verification'],
+    default='full')
 parser.add_argument(
     '--top-pan-balance', '-t',
     help='Read fluid mass measurements from a top pan balance connected to this serial port.',
@@ -306,42 +311,95 @@ parser.add_argument(
     default=2.5)
 args = parser.parse_args()
 
-if args.short:
-    broad_params = {
-        'n_repeats': args.broad,
-        'max_duration': 21,
-        'revs': (1, 10, 100),
-        'rates': (10, 100, 1000, 3000),
-        'pumps': [args.pump]
-    }
-    deep_params = {
-        'n_repeats': args.deep,
-        'max_duration': 3600,
-        'revs': (0.1, 0.3, 1),
-        'rates': (100),
-        'pumps': [args.pump]
-    }
-else:
-    broad_params = {
-        'n_repeats': args.broad,
-        'max_duration': 61,
-#       'revs': (1, 3, 10, 32, 100, 320, 600),
-#       'rates': (1, 3, 10, 32, 100, 320, 560, 1000, 1300, 1800, 2400, 3000),
-#       'revs': (600, 320, 100, 32, 10, 3, 1),
-#       'rates': (3000, 2400, 1800, 1300, 1000, 560, 320, 100, 32, 10, 3, 1),
-        'revs': (600, 320, 100, 32, 10),
-        'rates': (1800, 1300, 1000, 560, 320, 100, 32, 10),
-        'pumps': [args.pump]
-    }
-    deep_params = {
-        'n_repeats': args.deep,
-        'max_duration': 36000,
-#        'revs': (0.1, 0.3, 1),
-#        'rates': (10, 100, 3000),
-        'revs': (1, 0.3, 0.1),
-        'rates': (1000, 100, 10),
-        'pumps': [args.pump]
-    }
+max_durations = {
+    'full': 61,
+    'short': 21,
+    'verification': 21,
+}
+
+revs_and_rates = {
+    'full': {
+        'S350': {
+            'broad': {
+                'revs': (600, 320, 100, 32, 10),
+                'rates': (1800, 1300, 1000, 560, 320, 100, 32, 10),
+            },
+            'deep': {
+                'revs': (1, 0.3, 0.1),
+                'rates': (1000, 100, 10),
+            },
+        },
+        'water': {
+            'broad': {
+                'revs': (600, 320, 100, 32, 10, 3, 1),
+                'rates': (3000, 2400, 1800, 1300, 1000, 560, 320, 100, 32, 10, 3, 1),
+            },
+            'deep': {
+                'revs': (1, 0.3, 0.1),
+                'rates': (1000, 100, 10),
+            },
+        },
+    },
+    'short': {
+        'S350': {
+            'broad': {
+                'revs': (100, 10),
+                'rates': (1800, 1000, 100, 10),
+            },
+            'deep': {
+                'revs': (1, 0.3, 0.1),
+                'rates': (100),
+            },
+        },
+        'water': {
+            'broad': {
+                'revs': (100, 10, 1),
+                'rates': (3000, 1000, 100, 10),
+            },
+            'deep': {
+                'revs': (1, 0.3, 0.1),
+                'rates': (100),
+            },
+        },
+    },
+    'verification': {
+        'S350': {
+            'broad': {
+                'revs': (600, 320, 100, 32, 10),
+                'rates': (1300, 1000, 560, 320, 100),
+            },
+            'deep': {
+                'revs': (1, 0.3),
+                'rates': (100),
+            },
+        },
+        'water': {
+            'broad': {
+                'revs': (600, 320, 100, 32, 10, 3, 1),
+                'rates': (3000, 1800, 1000, 320, 100, 32, 10, 3, 1),
+            },
+            'deep': {
+                'revs': (1, 0.3),
+                'rates': (100),
+            },
+        },
+    },
+}
+
+broad_params = {
+    'n_repeats': args.broad,
+    'max_duration': max_durations[args.test_scope],
+    'pumps': [args.pump]
+}
+broad_params.update(revs_and_rates[args.test_scope][args.fluid]['broad'])
+deep_params = {
+    'n_repeats': args.deep,
+    'max_duration': 3600,
+    'pumps': [args.pump]
+}
+deep_params.update(revs_and_rates[args.test_scope][args.fluid]['deep'])
+
+outfile_name_format='pump-measure.{}.{{}}.{{}}.{}{{}}.{}.csv'.format(args.pump, (args.name + '.') if args.name else '', dt.utcnow().isoformat())
 
 log.debug('opening serial port...')
 with serial.Serial(
@@ -371,7 +429,7 @@ with serial.Serial(
         if args.test_origin:
             test_set_to_weight(sio, ser, args.pump, args.wait)
         for test_set_name, test_set_params in (('deep', deep_params), ('broad', broad_params)):
-            result_file_name = os.path.join(args.result_path, OUTFILE.format(args.name, test_set_name))
+            result_file_name = os.path.join(args.result_path, outfile_name_format.format(args.fluid, args.test_scope, test_set_name))
             if test_set_params['n_repeats']:
                 with open(result_file_name,'w') as result_file:
                     log.debug('generating {} tests...'.format(test_set_name))
