@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 import numpy, csv, argparse
 import matplotlib.pyplot as plt
-import itertools
-
 
 def extract_data(d, measurements):
     data = {
@@ -82,8 +80,8 @@ for i, revs in enumerate(all_revs, 0):
             if args.histogram:
                 axis.hist(*plot_params, normed=True)
             if args.time_series:
-                for x, y, format in plot_params:
-                    axis.plot(x, y, format)
+                for x, y, format_string in plot_params:
+                    axis.plot(x, y, format_string)
             axis.set_title(title)
         else:
             axis.set_visible(False)
