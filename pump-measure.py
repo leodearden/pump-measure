@@ -1,31 +1,13 @@
 #!/usr/bin/env python
-import serial, io, re, itertools, glob, csv, math, datetime, argparse, os, logging, sys
+import serial, io, re, itertools, glob, csv, math, datetime, argparse, os, logging, sys, socket
 from printrun.printcore import printcore
 from time import sleep, time
+import time
 from datetime import datetime as dt
 from types import MethodType
 
 log = logging.getLogger('pm')
 log.setLevel(logging.DEBUG)
-
-def rsleep(sleep_s):
-    RELATIVE_CORRECTION = 0.8
-    EPS = 0.01
-    DEBUG_RELATIVE_ERR = 0.05
-    WARN_RELATIVE_ERR = 0.19
-    now_s = time()
-    target_s = now_s + sleep_s
-    while now_s + EPS < target_s:
-        sleep_command_s = (target_s - now_s) * RELATIVE_CORRECTION
-        before_s = time()
-        sleep(sleep_command_s)
-        now_s = time()
-        sleep_actual_s = now_s - before_s
-        relative_err = sleep_actual_s / sleep_command_s - 1
-        if math.fabs(relative_err) > WARN_RELATIVE_ERR:
-            log.warn('Very inaccurate sleep (command = {}s, actual = {}s, relative err = {})'.format(sleep_command_s, sleep_actual_s, relative_err))
-        elif math.fabs(relative_err) > DEBUG_RELATIVE_ERR:
-            log.debug('Inaccurate sleep (command = {}s, actual = {}s, relative err = {})'.format(sleep_command_s, sleep_actual_s, relative_err))
 
 def read_all(sio, ser, at_least_one=False):
     read = []
@@ -80,20 +62,23 @@ def read_weight(sio, ser):
     assert readings
     return parse_weight(readings[-1])
 
-def set_to_weight(sio, ser, pump, target, wait, eps=0.1):
+def set_to_weight(sio, ser, pump, target, wait, eps=0.5):
     log.debug('set_to_weight: target = ' + str(target))
-    MASS_PER_REV = 0.23
-    RATE = 1000.0
+    MASS_PER_REV = -0.69
+    RATE = 50.0
     error = read_weight(sio, ser) - target
 #    while math.fabs(error) > eps:
     log.debug("set_to_weight: initial error = " + str(error))
-    revs = - error / MASS_PER_REV
-    printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
-    sleep_time_s = 60 * math.fabs(revs) / RATE + wait
-    log.debug('set_to_weight: about to sleep for {}s'.format(sleep_time_s))
-    rsleep(sleep_time_s)
-    error = read_weight(sio, ser) - target
-    log.info("set_to_weight: final error = " + str(error))
+    for _ in range(4):
+        revs = 0.8 * (- error / MASS_PER_REV)
+        printer.send('G0 {}{} F{}'.format(pump, revs, RATE))
+        sleep_time_s = 60 * math.fabs(revs) / RATE + wait
+        log.debug('set_to_weight: about to sleep for {}s'.format(sleep_time_s))
+        time.sleep(sleep_time_s)
+        error = read_weight(sio, ser) - target
+        log.info("set_to_weight: iteration end error = " + str(error))
+        if math.fabs(error) > eps:
+            return
 
 
 def test_set_to_weight(sio, ser, pump, wait):
@@ -137,7 +122,7 @@ class Test(object):
         return 'G0 {}-{} F{}'.format(self.pump, self.revs, self.rate)
 
     def __str__(self):
-        return 'Test {} for {} revs at rate {} in {}s (result = {})'.format(t.pump, t.revs, t.rate, t.duration, t.result)
+        return 'Test {} for {} revs at rate {} in {}s (result = {})'.format(t.pump, t.revs, t.rate, t.target, t.result)
 
     __repr__ = __str__
 
@@ -145,11 +130,11 @@ class Test(object):
     def result_writer(self):
         if not self.writer_container:
             log.debug('Preparing to write results to {}...'.format(self.result_file.name))
-            titles = sorted(self.result.iterkeys())
+            titles = sorted(self.result.keys())
             # Move the default result columns to the start 
-            for title in self.default_result.iterkeys():
+            for title in self.default_result.keys():
                 titles.remove(title)
-            titles = self.default_result.keys() + titles
+            titles = list(self.default_result.keys()) + titles
             writer = csv.DictWriter(self.result_file, titles)
             writer.writeheader()
             log.debug('prepared.')
@@ -159,20 +144,21 @@ class Test(object):
     def run(self, sio, ser):
         self.result = dict(self.default_result)
         set_to_weight(sio, ser, self.pump, self.initial_mass, self.wait_s)
-        for rep in xrange(self.repeats):
+        for rep in range(self.repeats):
             self.result['time'] = dt.utcnow().isoformat()
             start_weight = read_weight(sio, ser)
             for command, name in ((self.forward, 'F'), (self.back, 'R')):
                 drain(sio, ser)
                 log.debug('sending "{}"'.format(command))
                 printer.send(command)
-                rsleep(self.duration + self.wait_s)
+                time.sleep(self.duration + self.wait_s)
                 mn, mx = read_weights(sio, ser)
                 delta = mx - mn
                 log.debug('mn = {}, mx = {}, delta = {}'.format(mn, mx, delta))
                 self.result['T{:03}_{}_n'.format(rep, name)] = mn
                 self.result['T{:03}_{}_x'.format(rep, name)] = mx
                 self.result['T{:03}_{}_d'.format(rep, name)] = delta
+                set_to_weight(sio, ser, self.pump, self.initial_mass, self.wait_s)
             end_weight = read_weight(sio, ser)
             self.result['T{:03}_drift'.format(rep)] = end_weight - start_weight
         self.result_writer.writerow(self.result)
@@ -192,10 +178,10 @@ def generate_tests(n_repeats, max_duration, revs, rates, pumps, result_file, arg
             initial_mass=args.initial_mass)
         for rate, revs, p in itertools.product(rates, revs, pumps)
     ]
-    return filter(lambda t: t.duration <= max_duration, tests)
+    return list(filter(lambda t: t.target <= max_duration, tests))
 
 def estimate_runtime(tests):
-    runtime = sum([2 * t.repeats * (t.duration + t.wait_s) for t in tests])
+    runtime = sum([2 * t.repeats * (t.target + t.wait_s) for t in tests])
     formatted_time_remaining = datetime.timedelta(seconds=runtime)
     return formatted_time_remaining
 
@@ -225,7 +211,7 @@ def patched_send(self, command, lineno = 0, calcchecksum = False):
             try: self.sendcb(command, gline)
             except: self.logError(traceback.format_exc())
         try:
-            self.printer.write(str(command + "\n"))
+            self.printer.write(str(command + "\n").encode())
             if self.printer_tcp:
                 try:
                     self.printer.flush()
@@ -239,7 +225,7 @@ def patched_send(self, command, lineno = 0, calcchecksum = False):
             else:
                 self.logError(_(u"Can't write to printer (disconnected?) (Socket error {0}): {1}").format(e.errno, decode_utf8(e.strerror)))
             self.writefailures += 1
-        except SerialException as e:
+        except serial.SerialException as e:
             self.logError(_(u"Can't write to printer (disconnected?) (SerialException): {0}").format(decode_utf8(str(e))))
             self.writefailures += 1
         except RuntimeError as e:
@@ -313,7 +299,7 @@ args = parser.parse_args()
 
 max_durations = {
     'full': 61,
-    'short': 21,
+    'short': 301.0,
     'verification': 21,
 }
 
@@ -343,12 +329,14 @@ revs_and_rates = {
     'short': {
         'S350': {
             'broad': {
-                'revs': (100, 10),
-                'rates': (1800, 1000, 100, 10),
+                # 'revs': (100, 10),
+                'revs': (50,),
+                # 'rates': (1800, 900, 100, 10),
+                'rates': reversed((300, 100, 20)),
             },
             'deep': {
                 'revs': (1, 0.3, 0.1),
-                'rates': (100),
+                'rates': (100,),
             },
         },
         'water': {
@@ -358,7 +346,7 @@ revs_and_rates = {
             },
             'deep': {
                 'revs': (1, 0.3, 0.1),
-                'rates': (100),
+                'rates': (100,),
             },
         },
     },
@@ -370,7 +358,7 @@ revs_and_rates = {
             },
             'deep': {
                 'revs': (1, 0.3),
-                'rates': (100),
+                'rates': (100,),
             },
         },
         'water': {
@@ -380,7 +368,7 @@ revs_and_rates = {
             },
             'deep': {
                 'revs': (1, 0.3),
-                'rates': (100),
+                'rates': (100,),
             },
         },
     },
@@ -421,10 +409,11 @@ with serial.Serial(
         printer_interface = usb_modem_names[0]
         log.debug('opening printer_interface = {} ...'.format(printer_interface))
         printer = printcore()
-        printer._send = MethodType(patched_send, printer)
+        # disable patching - printcore interface has changed and broken patched method. Hopefully we don't need it any more?
+        #printer._send = MethodType(patched_send, printer)
         printer.connect(port=printer_interface, baud=115200)
         log.debug('done.')
-        rsleep(3)
+        time.sleep(3)
         printer.send("G91")
         if args.test_origin:
             test_set_to_weight(sio, ser, args.pump, args.wait)
